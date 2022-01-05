@@ -19,6 +19,8 @@
 #include "platform/icap_platform.h"
 
 #if defined(ICAP_LINUX_KERNEL_RPMSG)
+#include <linux/stddef.h>
+#include <linux/string.h>
 #elif defined(ICAP_BM_RPMSG_LITE)
 #include <stddef.h>
 #include <string.h>
