@@ -48,10 +48,10 @@ int32_t icap_add_record_dst(struct icap_instance *icap, struct icap_buf_descript
 int32_t icap_add_record_src(struct icap_instance *icap, struct icap_buf_descriptor *buf);
 int32_t icap_remove_record_dst(struct icap_instance *icap, char *name);
 int32_t icap_remove_record_src(struct icap_instance *icap, char *name);
-int32_t icap_send_record_start(struct icap_instance *icap);
-int32_t icap_send_record_stop(struct icap_instance *icap);
-int32_t icap_send_record_pause(struct icap_instance *icap);
-int32_t icap_send_record_resume(struct icap_instance *icap);
+int32_t icap_record_start(struct icap_instance *icap);
+int32_t icap_record_stop(struct icap_instance *icap);
+int32_t icap_record_pause(struct icap_instance *icap);
+int32_t icap_record_resume(struct icap_instance *icap);
 int32_t icap_record_frags(struct icap_instance *icap, struct icap_buf_offsets *offsets);
 
 #endif /* _ICAP_APPLICATION_H_ */

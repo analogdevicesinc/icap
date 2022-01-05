@@ -254,22 +254,22 @@ int32_t icap_remove_record_src(struct icap_instance *icap, char *name)
 	return icap_send_sync(icap, ICAP_MSG_RECORD_REMOVE_SRC, name, len);
 }
 
-int32_t icap_send_record_start(struct icap_instance *icap)
+int32_t icap_record_start(struct icap_instance *icap)
 {
 	return icap_send_sync(icap, ICAP_MSG_RECORD_START, NULL, 0);
 }
 
-int32_t icap_send_record_stop(struct icap_instance *icap)
+int32_t icap_record_stop(struct icap_instance *icap)
 {
 	return icap_send_sync(icap, ICAP_MSG_RECORD_STOP, NULL, 0);
 }
 
-int32_t icap_send_record_pause(struct icap_instance *icap)
+int32_t icap_record_pause(struct icap_instance *icap)
 {
 	return icap_send_sync(icap, ICAP_MSG_RECORD_PAUSE, NULL, 0);
 }
 
-int32_t icap_send_record_resume(struct icap_instance *icap)
+int32_t icap_record_resume(struct icap_instance *icap)
 {
 	return icap_send_sync(icap, ICAP_MSG_RECORD_RESUME, NULL, 0);
 }
@@ -366,7 +366,7 @@ int32_t icap_parse_msg(struct icap_instance *icap, union icap_remote_addr *src_a
 	}
 	
 	if ( (msg_header->type == ICAP_ACK) || (msg_header->type == ICAP_NAK) ) {
-		return icap_response_notify(icap, data, size);
+		return icap_response_notify(icap, msg);
 	}
 
 	if (msg_header->type == ICAP_MSG) {
