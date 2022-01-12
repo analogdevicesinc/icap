@@ -110,7 +110,7 @@ int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, str
 {
 	int32_t ret;
 
-	ret = icap_wait_for_response_platfrom(icap, seq_num, response);
+	ret = icap_wait_for_response_platform(icap, seq_num, response);
 	if (ret != ICAP_SUCCESS) {
 		return ret;
 	}
@@ -510,8 +510,6 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 		ret = -ICAP_ERROR_MSG_ID;
 		break;
 	}
-
-
 
 	if (ret) {
 		icap_send_nak(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, ret);

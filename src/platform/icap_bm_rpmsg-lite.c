@@ -134,7 +134,7 @@ int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *respon
 	return ICAP_SUCCESS;
 }
 
-int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
+int32_t icap_wait_for_response_platform(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
 {
 	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
@@ -147,11 +147,7 @@ int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, str
     		/* Got proper response */
     		size = sizeof(struct icap_msg_header) + fifo->last_response.header.payload_len;
     		memcpy(response, &fifo->last_response, size);
-    		if (response->header.type == ICAP_NAK) {
-    			return response->payload.i;
-    		} else {
-    			return 0;
-    		}
+    		return 0;
     	}
         elapsed = platform_us_clock_tick() - start;
     }while(elapsed < ICAP_MSG_TIMEOUT_US);

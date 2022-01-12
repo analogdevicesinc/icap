@@ -63,6 +63,8 @@
 #define ICAP_ERROR_REMOTE_ADDR 78
 #define ICAP_ERROR_MSG_LEN 90
 #define ICAP_ERROR_TIMEOUT 110
+#define ICAP_ERROR_NO_BUFS 233
+#define ICAP_ERROR_NOT_SUP 252
 
 
 enum icap_buf_type {
