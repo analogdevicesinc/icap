@@ -333,6 +333,7 @@ int32_t icap_application_parse_msg(struct icap_instance *icap, struct icap_msg *
 		}
 		break;
 	default:
+		ret = -ICAP_ERROR_MSG_ID;
 		break;
 	}
 
@@ -349,6 +350,139 @@ int32_t icap_application_parse_msg(struct icap_instance *icap, struct icap_msg *
 
 int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 {
+	struct icap_device_callbacks *cb = (struct icap_device_callbacks *)icap->callbacks;
+	struct icap_msg_header *msg_header = &msg->header;
+	int32_t send_generic_ack = 1;
+	int32_t ret = 0;
+	uint32_t frags;
+
+	switch (msg_header->id) {
+	case ICAP_MSG_GET_DEV_FEATURES:
+		if (cb->get_device_features){
+			ret = cb->get_device_features(icap);//TODO custom ack
+		}
+		break;
+	case ICAP_MSG_DEV_INIT:
+		if (cb->device_init){
+			ret = cb->device_init(icap, msg->payload.ui);
+		}
+		break;
+	case ICAP_MSG_DEV_DEINIT:
+		if (cb->device_deinit){
+			ret = cb->device_deinit(icap, msg->payload.ui);
+		}
+		break;
+	case ICAP_MSG_PLAYBACK_ADD_SRC:
+		if (cb->add_playback_src){
+			ret = cb->add_playback_src(icap, &msg->payload.buf);
+		}
+		break;
+	case ICAP_MSG_PLAYBACK_ADD_DST:
+		if (cb->add_playback_dst){
+			ret = cb->add_playback_dst(icap, &msg->payload.buf);
+		}
+		break;
+	case ICAP_MSG_PLAYBACK_REMOVE_SRC:
+		if (cb->remove_playback_src){
+			ret = cb->remove_playback_src(icap, msg->payload.name);
+		}
+		break;
+	case ICAP_MSG_PLAYBACK_REMOVE_DST:
+		if (cb->remove_playback_dst){
+			ret = cb->remove_playback_dst(icap, msg->payload.name);
+		}
+		break;
+	case ICAP_MSG_PLAYBACK_START:
+		send_generic_ack = 0;
+		if (cb->playback_start){
+			ret = cb->playback_start(icap, &frags);
+			if(ret == 0) {
+				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &frags, sizeof(frags));
+			}
+		} else {
+			frags = 0;
+			icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &frags, sizeof(frags));
+		}
+		break;
+	case ICAP_MSG_PLAYBACK_STOP:
+		if (cb->playback_stop){
+			ret = cb->playback_stop(icap);
+		}
+		break;
+	case ICAP_MSG_PLAYBACK_PAUSE:
+		if (cb->playback_pause){
+			ret = cb->playback_pause(icap);
+		}
+		break;
+	case ICAP_MSG_PLAYBACK_RESUME:
+		if (cb->playback_resume){
+			ret = cb->playback_resume(icap);
+		}
+		break;
+	case ICAP_MSG_PLAYBACK_BUF_OFFSETS:
+		if (cb->new_playback_frags){
+			ret = cb->new_playback_frags(icap, &msg->payload.offsets);
+		}
+		break;
+	case ICAP_MSG_RECORD_ADD_DST:
+		if (cb->record_add_dst){
+			ret = cb->record_add_dst(icap, &msg->payload.buf);
+		}
+		break;
+	case ICAP_MSG_RECORD_ADD_SRC:
+		if (cb->record_add_src){
+			ret = cb->record_add_src(icap, &msg->payload.buf);
+		}
+		break;
+	case ICAP_MSG_RECORD_REMOVE_DST:
+		if (cb->record_remove_dst){
+			ret = cb->record_remove_dst(icap, msg->payload.name);
+		}
+		break;
+	case ICAP_MSG_RECORD_REMOVE_SRC:
+		if (cb->record_remove_src){
+			ret = cb->record_remove_src(icap, msg->payload.name);
+		}
+		break;
+	case ICAP_MSG_RECORD_START:
+		if (cb->record_start){
+			ret = cb->record_start(icap);
+		}
+		break;
+	case ICAP_MSG_RECORD_STOP:
+		if (cb->record_stop){
+			ret = cb->record_stop(icap);
+		}
+		break;
+	case ICAP_MSG_RECORD_PAUSE:
+		if (cb->record_pause){
+			ret = cb->record_pause(icap);
+		}
+		break;
+	case ICAP_MSG_RECORD_RESUME:
+		if (cb->record_resume){
+			ret = cb->record_resume(icap);
+		}
+		break;
+	case ICAP_MSG_RECORD_BUF_OFFSETS:
+		if (cb->new_record_frags){
+			ret = cb->new_record_frags(icap, &msg->payload.offsets);
+		}
+		break;
+	default:
+		ret = -ICAP_ERROR_MSG_ID;
+		break;
+	}
+
+
+
+	if (ret) {
+		icap_send_nak(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, ret);
+	} else {
+		if (send_generic_ack) {
+			icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, NULL, 0);
+		}
+	}
 	return 0;
 }
 

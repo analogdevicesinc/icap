@@ -28,7 +28,7 @@ struct icap_device_callbacks {
 	int32_t (*add_playback_dst)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
 	int32_t (*remove_playback_src)(struct icap_instance *icap, char *name);
 	int32_t (*remove_playback_dst)(struct icap_instance *icap, char *name);
-	int32_t (*playback_start)(struct icap_instance *icap);
+	int32_t (*playback_start)(struct icap_instance *icap, uint32_t *frags);
 	int32_t (*playback_stop)(struct icap_instance *icap);
 	int32_t (*playback_pause)(struct icap_instance *icap);
 	int32_t (*playback_resume)(struct icap_instance *icap);

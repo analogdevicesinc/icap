@@ -9,10 +9,17 @@
 
 typedef uint16_t atomic_t;
 
+struct _icap_remote_msg {
+	void *data;
+	uint32_t size;
+	union icap_remote_addr src_addr;
+};
+
 struct _icap_msg_fifo {
 	atomic_t head;
 	atomic_t tail;
-	struct icap_msg *msg[ICAP_MSG_QUEUE_SIZE];
+	struct _icap_remote_msg remote_msg[ICAP_MSG_QUEUE_SIZE];
+	struct icap_msg last_response;
 	uint32_t in_use;
 };
 
@@ -71,11 +78,9 @@ int32_t icap_send_platform(struct icap_instance *icap, void *data, uint32_t size
 			data, size, 0);
 }
 
-int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *response)
-{
+int32_t icap_put_msg(struct icap_instance *icap, union icap_remote_addr *src_addr, void *data, uint32_t size) {
 	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
-	uint32_t size;
 
 	atomic_t head_next = fifo->head + 1;
 	if (head_next >= ICAP_MSG_QUEUE_SIZE){
@@ -88,51 +93,70 @@ int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *respon
 	}
 
 	// put the message to the fifo
-	fifo->msg[head_next] = response;
+	fifo->remote_msg[head_next].data = data;
+	fifo->remote_msg[head_next].src_addr = *src_addr;
+	fifo->remote_msg[head_next].size = size;
 	fifo->head = head_next;
 	return RL_HOLD;
+}
+
+int32_t icap_loop(struct icap_instance *icap) {
+	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
+	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
+	struct _icap_remote_msg *remote_msg;
+	atomic_t tail_next;
+	int32_t ret;
+
+	if (fifo->tail == fifo->head) {
+		return ICAP_SUCCESS;
+	}
+
+	//Get a message from the fifo
+	tail_next = fifo->tail + 1;
+	if(tail_next >= ICAP_MSG_QUEUE_SIZE) {
+		tail_next = 0;
+	}
+	remote_msg = &fifo->remote_msg[tail_next];
+
+	ret = icap_parse_msg(icap, &remote_msg->src_addr, remote_msg->data, remote_msg->size);
+
+	rpmsg_lite_release_rx_buffer(ept_info->rpmsg_instance, remote_msg->data);
+	fifo->tail = tail_next;
+	return ret;
+}
+
+int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *response)
+{
+	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
+	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
+	uint32_t size = sizeof(struct icap_msg_header) + response->header.payload_len;
+	memcpy(&fifo->last_response, response, size);
+	return ICAP_SUCCESS;
 }
 
 int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
 {
 	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
-	uint32_t timeout_ms = (ICAP_MSG_TIMEOUT_US + 999) / 1000;
-	atomic_t tail_next;
-	struct icap_msg *msg;
-	uint32_t size;
-	int32_t ret;
+    uint32_t start, elapsed, size;
+    start = platform_us_clock_tick();
 
-	while (1) {
-		while (fifo->tail == fifo->head) {
-			if (timeout_ms) {
-				env_sleep_msec(1);
-				timeout_ms--;
-			} else {
-				return -ICAP_ERROR_TIMEOUT;
-			}
-		}
+    do {
+    	icap_loop(icap);
+    	if (fifo->last_response.header.seq_num == seq_num) {
+    		/* Got proper response */
+    		size = sizeof(struct icap_msg_header) + fifo->last_response.header.payload_len;
+    		memcpy(response, &fifo->last_response, size);
+    		if (response->header.type == ICAP_NAK) {
+    			return response->payload.i;
+    		} else {
+    			return 0;
+    		}
+    	}
+        elapsed = platform_us_clock_tick() - start;
+    }while(elapsed < ICAP_MSG_TIMEOUT_US);
 
-		//Get a message from the fifo
-		tail_next = fifo->tail + 1;
-		if(tail_next >= ICAP_MSG_QUEUE_SIZE) {
-			tail_next = 0;
-		}
-
-		msg = fifo->msg[tail_next];
-
-		if (msg->header.seq_num == seq_num) {
-			/* Got proper response */
-			size = sizeof(struct icap_msg_header) + msg->header.payload_len;
-			memcpy(response, msg, size);
-			rpmsg_lite_release_rx_buffer(ept_info->rpmsg_instance, fifo->msg[tail_next]);
-			fifo->tail = tail_next;
-			return 0;
-		}
-
-		rpmsg_lite_release_rx_buffer(ept_info->rpmsg_instance, fifo->msg[tail_next]);
-		fifo->tail = tail_next;
-	}
+    return -ICAP_ERROR_TIMEOUT;
 }
 
 #endif /* ICAP_BM_RPMSG_LITE */

@@ -49,7 +49,8 @@ enum icap_msg_id {
 
 ICAP_PACKED_BEGIN
 union icap_msg_payload {
-	uint8_t bytes[32];
+	uint8_t bytes[ICAP_BUF_NAME_LEN];
+	char name[ICAP_BUF_NAME_LEN];
 	uint32_t ui;
 	int32_t i;
 	struct icap_buf_descriptor buf;
