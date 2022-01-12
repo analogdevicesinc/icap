@@ -103,7 +103,7 @@ int32_t icap_wait_for_response_platform(struct icap_instance *icap, uint32_t seq
 		if (timeout > 0) {
 			ret = kfifo_get(&queue->responses, response);
 			if (ret && response->header.seq_num == seq_num) {
-				return ICAP_SUCCESS;
+				return 0;
 			} else {
 				continue;
 			}

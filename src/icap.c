@@ -111,14 +111,14 @@ int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, str
 	int32_t ret;
 
 	ret = icap_wait_for_response_platform(icap, seq_num, response);
-	if (ret != ICAP_SUCCESS) {
+	if (ret) {
 		return ret;
 	}
 
 	if (response->header.type == ICAP_NAK) {
 		return response->payload.i;
 	} else {
-		return ICAP_SUCCESS;
+		return 0;
 	}
 }
 
@@ -154,14 +154,17 @@ int32_t icap_get_device_features(struct icap_instance *icap, struct icap_device_
 	if (ret) {
 		return ret;
 	}
+
 	ret = icap_wait_for_response(icap, seq_num, &msg);
-	if (ret == ICAP_SUCCESS){
-		if (msg.header.payload_len != sizeof(struct icap_device_features)){
-			return -ICAP_ERROR_MSG_LEN;
-		}
-		memcpy(features, &msg.payload, sizeof(struct icap_device_features));
+	if (ret) {
+		return ret;
 	}
-	return ret;
+
+	if (msg.header.payload_len != sizeof(struct icap_device_features)){
+		return -ICAP_ERROR_MSG_LEN;
+	}
+	memcpy(features, &msg.payload, sizeof(struct icap_device_features));
+	return 0;
 }
 
 int32_t icap_request_device_init(struct icap_instance *icap, uint32_t dev_id) {
@@ -218,15 +221,17 @@ int32_t icap_playback_start(struct icap_instance *icap, uint32_t *frags)
 	if (ret) {
 		return ret;
 	}
-	ret = icap_wait_for_response(icap, seq_num, &msg);
-	if (ret == ICAP_SUCCESS){
 
-		if (msg.header.payload_len != sizeof(*frags)){
-			return -ICAP_ERROR_MSG_LEN;
-		}
-		*frags = msg.payload.ui;
+	ret = icap_wait_for_response(icap, seq_num, &msg);
+	if (ret) {
+		return ret;
 	}
-	return ret;
+
+	if (msg.header.payload_len != sizeof(*frags)){
+		return -ICAP_ERROR_MSG_LEN;
+	}
+	*frags = msg.payload.ui;
+	return 0;
 }
 
 int32_t icap_playback_stop(struct icap_instance *icap)
