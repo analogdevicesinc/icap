@@ -80,6 +80,6 @@ int32_t icap_deinit_transport(struct icap_instance *icap);
 int32_t icap_verify_remote(struct icap_instance *icap, union icap_remote_addr *src_addr);
 int32_t icap_send_platform(struct icap_instance *icap, void *data, uint32_t size);
 int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *response);
-int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response);
+int32_t icap_wait_for_response_platform(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response);
 
 #endif /* _ICAP_TRANSPORT_H_ */

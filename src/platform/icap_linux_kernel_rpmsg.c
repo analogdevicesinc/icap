@@ -24,33 +24,10 @@
 #include <linux/rpmsg.h>
 #include <linux/completion.h>
 
-#define __DEBUG 1
 #define __ICAP_MSG_TIMEOUT usecs_to_jiffies(ICAP_MSG_TIMEOUT_US)
 
-#if __DEBUG
-#define __D_ASSERT(icap, cond)                                     \
-	do {                                                           \
-		if (!(cond)) {                                             \
-			dev_err(&icap->ept->rpdev->dev,                        \
-				"Debug assertion failed (" #cond " ) in %s:%d\n", __FILE__, __LINE__); \
-			BUG();                                                 \
-		}                                                          \
-	} while (0)
-#else
-#define __D_ASSERT(icap, cond)
-#endif
-
-#define __ASSERT(icap, cond)                                       \
-	do {                                                           \
-		if (!(cond)) {                                             \
-			dev_err(&icap->ept->rpdev->dev,                        \
-				"Debug assertion failed (" #cond " ) in %s:%d\n", __FILE__, __LINE__); \
-			BUG();                                                 \
-		}                                                          \
-	} while (0)
-
 struct icap_rpmsg_queue {
-	struct completion *msg_ack_complete;
+	struct completion msg_ack_complete;
 	DECLARE_KFIFO(responses, struct icap_msg, 16);
 };
 
@@ -60,11 +37,11 @@ int32_t icap_init_transport(struct icap_instance *icap)
 	struct device *dev = &ept->rpdev->dev;
 	struct icap_rpmsg_queue *queue;
 
-	queue = devm_kzalloc(dev, sizeof(struct completion), GFP_KERNEL);
+	queue = devm_kzalloc(dev, sizeof(struct icap_rpmsg_queue), GFP_KERNEL);
 	if (queue == NULL)
 		return -ENOMEM;
 
-	init_completion(queue->msg_ack_complete);
+	init_completion(&queue->msg_ack_complete);
 	INIT_KFIFO(queue->responses);
 	ept->priv = queue;
 
@@ -103,14 +80,14 @@ int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *respon
 
 	ret = kfifo_put(&queue->responses, *response);
 	if (ret) {
-		complete(queue->msg_ack_complete);
+		complete(&queue->msg_ack_complete);
 		return 0;
 	} else {
 		return -ICAP_ERROR_NOMEM;
 	}
 }
 
-int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
+int32_t icap_wait_for_response_platform(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
 {
 	struct rpmsg_endpoint *ept = (struct rpmsg_endpoint*)icap->transport;
 	struct icap_rpmsg_queue *queue = (struct icap_rpmsg_queue *)ept->priv;
@@ -122,11 +99,11 @@ int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, str
 	int ret;
 
 	while (1){
-		timeout = wait_for_completion_interruptible_timeout(queue->msg_ack_complete, __ICAP_MSG_TIMEOUT);
+		timeout = wait_for_completion_interruptible_timeout(&queue->msg_ack_complete, __ICAP_MSG_TIMEOUT);
 		if (timeout > 0) {
 			ret = kfifo_get(&queue->responses, response);
 			if (ret && response->header.seq_num == seq_num) {
-				return 0;
+				return ICAP_SUCCESS;
 			} else {
 				continue;
 			}

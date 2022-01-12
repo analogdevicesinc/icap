@@ -38,7 +38,7 @@ int32_t icap_add_playback_src(struct icap_instance *icap, struct icap_buf_descri
 int32_t icap_add_playback_dst(struct icap_instance *icap, struct icap_buf_descriptor *buf);
 int32_t icap_remove_playback_src(struct icap_instance *icap, char *name);
 int32_t icap_remove_playback_dst(struct icap_instance *icap, char *name);
-int32_t icap_playback_start(struct icap_instance *icap);
+int32_t icap_playback_start(struct icap_instance *icap, uint32_t *frags);
 int32_t icap_playback_stop(struct icap_instance *icap);
 int32_t icap_playback_pause(struct icap_instance *icap);
 int32_t icap_playback_resume(struct icap_instance *icap);
