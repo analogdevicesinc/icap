@@ -106,14 +106,31 @@ int32_t icap_send(struct icap_instance *icap, enum icap_msg_id id, enum icap_msg
 	return icap_send_platform(icap, &msg, size);
 }
 
+int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
+{
+	int32_t ret;
+
+	ret = icap_wait_for_response_platfrom(icap, seq_num, response);
+	if (ret != ICAP_SUCCESS) {
+		return ret;
+	}
+
+	if (response->header.type == ICAP_NAK) {
+		return response->payload.i;
+	} else {
+		return ICAP_SUCCESS;
+	}
+}
+
 int32_t icap_send_sync(struct icap_instance *icap, enum icap_msg_id id, void *data, uint32_t size){
+	struct icap_msg msg;
 	uint32_t seq_num;
 	int ret;
 	ret = icap_send(icap, id, ICAP_MSG, &seq_num, data, size);
 	if (ret) {
 		return ret;
 	}
-	return icap_wait_for_response(icap, seq_num, NULL);
+	return icap_wait_for_response(icap, seq_num, &msg);
 }
 
 int32_t icap_send_ack(struct icap_instance *icap, enum icap_msg_id id, uint32_t seq_num, void *data, uint32_t size){
@@ -187,9 +204,29 @@ int32_t icap_remove_playback_dst(struct icap_instance *icap, char *name)
 	return icap_send_sync(icap, ICAP_MSG_PLAYBACK_REMOVE_DST, name, len);
 }
 
-int32_t icap_playback_start(struct icap_instance *icap)
+int32_t icap_playback_start(struct icap_instance *icap, uint32_t *frags)
 {
-	return icap_send_sync(icap, ICAP_MSG_PLAYBACK_START, NULL, 0);
+	uint32_t seq_num;
+	int32_t ret;
+	struct icap_msg msg;
+
+	if(frags == NULL){
+		return -ICAP_ERROR_INVALID;
+	}
+
+	ret = icap_send(icap, ICAP_MSG_PLAYBACK_START, ICAP_MSG, &seq_num, NULL, 0);
+	if (ret) {
+		return ret;
+	}
+	ret = icap_wait_for_response(icap, seq_num, &msg);
+	if (ret == ICAP_SUCCESS){
+
+		if (msg.header.payload_len != sizeof(*frags)){
+			return -ICAP_ERROR_MSG_LEN;
+		}
+		*frags = msg.payload.ui;
+	}
+	return ret;
 }
 
 int32_t icap_playback_stop(struct icap_instance *icap)
