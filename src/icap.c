@@ -110,7 +110,7 @@ int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, str
 {
 	int32_t ret;
 
-	ret = icap_wait_for_response_platfrom(icap, seq_num, response);
+	ret = icap_wait_for_response_platform(icap, seq_num, response);
 	if (ret != ICAP_SUCCESS) {
 		return ret;
 	}
