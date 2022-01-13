@@ -32,17 +32,23 @@ struct icap_device_callbacks {
 	int32_t (*playback_stop)(struct icap_instance *icap);
 	int32_t (*playback_pause)(struct icap_instance *icap);
 	int32_t (*playback_resume)(struct icap_instance *icap);
-	int32_t (*new_playback_frags)(struct icap_instance *icap, struct icap_buf_offsets *offsets);
+	int32_t (*playback_frags)(struct icap_instance *icap, struct icap_buf_offsets *offsets);
+	int32_t (*playback_frag_ready_response)(struct icap_instance *icap, int32_t error);
+	int32_t (*playback_xrun_response)(struct icap_instance *icap, int32_t error);
 
-	int32_t (*record_add_dst)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
-	int32_t (*record_add_src)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
-	int32_t (*record_remove_dst)(struct icap_instance *icap, char *name);
-	int32_t (*record_remove_src)(struct icap_instance *icap, char *name);
+	int32_t (*add_record_dst)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
+	int32_t (*add_record_src)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
+	int32_t (*remove_record_dst)(struct icap_instance *icap, char *name);
+	int32_t (*remove_record_src)(struct icap_instance *icap, char *name);
 	int32_t (*record_start)(struct icap_instance *icap);
 	int32_t (*record_stop)(struct icap_instance *icap);
 	int32_t (*record_pause)(struct icap_instance *icap);
 	int32_t (*record_resume)(struct icap_instance *icap);
-	int32_t (*new_record_frags)(struct icap_instance *icap, struct icap_buf_offsets *offsets);
+	int32_t (*record_frags)(struct icap_instance *icap, struct icap_buf_offsets *offsets);
+	int32_t (*record_frag_ready_response)(struct icap_instance *icap, int32_t error);
+	int32_t (*record_xrun_response)(struct icap_instance *icap, int32_t error);
+
+	int32_t (*playback_error_response)(struct icap_instance *icap, int32_t error);
 };
 
 int32_t icap_device_init(struct icap_instance *icap, struct icap_device_callbacks *cb, void *transport, void *priv);

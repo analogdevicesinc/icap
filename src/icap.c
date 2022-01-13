@@ -336,6 +336,15 @@ int32_t icap_error(struct icap_instance *icap, uint32_t error)
 	return icap_send(icap, ICAP_MSG_ERROR, ICAP_MSG, &seq_num, &error, sizeof(error));
 }
 
+int32_t icap_application_parse_response(struct icap_instance *icap, struct icap_msg *msg)
+{
+	/*
+	 * Currently all responses to application are for synchronous messages
+	 * notify the wait function.
+	 */
+	return icap_response_notify(icap, msg);
+}
+
 int32_t icap_application_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 {
 	struct icap_application_callbacks *cb = (struct icap_application_callbacks *)icap->callbacks;
@@ -383,6 +392,57 @@ int32_t icap_application_parse_msg(struct icap_instance *icap, struct icap_msg *
 	}
 
 	return 0;
+}
+
+int32_t icap_device_parse_response(struct icap_instance *icap, struct icap_msg *msg)
+{
+	struct icap_device_callbacks *cb = (struct icap_device_callbacks *)icap->callbacks;
+	struct icap_msg_header *msg_header = &msg->header;
+	int32_t ret = 0;
+	int32_t error;
+
+	/*
+	 * Currently all responses to device are for asynchronous messages
+	 * execute a response callback.
+	 */
+
+	if(msg_header->type == ICAP_NAK) {
+		error = msg->payload.i;
+	} else {
+		error = 0;
+	}
+
+	switch (msg_header->id) {
+	case ICAP_MSG_PLAYBACK_FRAG_READY:
+		if (cb->playback_frag_ready_response){
+			ret = cb->playback_frag_ready_response(icap, error);
+		}
+		break;
+	case ICAP_MSG_PLAYBACK_XRUN:
+		if (cb->playback_xrun_response){
+			ret = cb->playback_xrun_response(icap, error);
+		}
+		break;
+	case ICAP_MSG_RECORD_FRAG_READY:
+		if (cb->record_frag_ready_response){
+			ret = cb->record_frag_ready_response(icap, error);
+		}
+		break;
+	case ICAP_MSG_RECORD_XRUN:
+		if (cb->record_xrun_response){
+			ret = cb->record_xrun_response(icap, error);
+		}
+		break;
+	case ICAP_MSG_ERROR:
+		if (cb->playback_error_response){
+			ret = cb->playback_error_response(icap, error);
+		}
+		break;
+	default:
+		ret = -ICAP_ERROR_MSG_ID;
+		break;
+	}
+	return ret;
 }
 
 int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
@@ -457,28 +517,28 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 		}
 		break;
 	case ICAP_MSG_PLAYBACK_BUF_OFFSETS:
-		if (cb->new_playback_frags){
-			ret = cb->new_playback_frags(icap, &msg->payload.offsets);
+		if (cb->playback_frags){
+			ret = cb->playback_frags(icap, &msg->payload.offsets);
 		}
 		break;
 	case ICAP_MSG_RECORD_ADD_DST:
-		if (cb->record_add_dst){
-			ret = cb->record_add_dst(icap, &msg->payload.buf);
+		if (cb->add_record_dst){
+			ret = cb->add_record_dst(icap, &msg->payload.buf);
 		}
 		break;
 	case ICAP_MSG_RECORD_ADD_SRC:
-		if (cb->record_add_src){
-			ret = cb->record_add_src(icap, &msg->payload.buf);
+		if (cb->add_record_src){
+			ret = cb->add_record_src(icap, &msg->payload.buf);
 		}
 		break;
 	case ICAP_MSG_RECORD_REMOVE_DST:
-		if (cb->record_remove_dst){
-			ret = cb->record_remove_dst(icap, msg->payload.name);
+		if (cb->remove_record_dst){
+			ret = cb->remove_record_dst(icap, msg->payload.name);
 		}
 		break;
 	case ICAP_MSG_RECORD_REMOVE_SRC:
-		if (cb->record_remove_src){
-			ret = cb->record_remove_src(icap, msg->payload.name);
+		if (cb->remove_record_src){
+			ret = cb->remove_record_src(icap, msg->payload.name);
 		}
 		break;
 	case ICAP_MSG_RECORD_START:
@@ -502,8 +562,8 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 		}
 		break;
 	case ICAP_MSG_RECORD_BUF_OFFSETS:
-		if (cb->new_record_frags){
-			ret = cb->new_record_frags(icap, &msg->payload.offsets);
+		if (cb->record_frags){
+			ret = cb->record_frags(icap, &msg->payload.offsets);
 		}
 		break;
 	default:
@@ -525,7 +585,12 @@ int32_t icap_parse_msg(struct icap_instance *icap, union icap_remote_addr *src_a
 {
 	struct icap_msg *msg = (struct icap_msg *)data;
 	struct icap_msg_header *msg_header = &msg->header;
-	int32_t ret;
+	struct icap_device_callbacks *cb;
+	int32_t ret, error;
+
+	if (msg_header->protocol_version != ICAP_PROTOCOL_VERSION) {
+		return -ICAP_ERROR_PROTOCOL;
+	}
 
 	if (size != sizeof(struct icap_msg_header) + msg_header->payload_len) {
 		return -ICAP_ERROR_MSG_LEN;
@@ -537,7 +602,11 @@ int32_t icap_parse_msg(struct icap_instance *icap, union icap_remote_addr *src_a
 	}
 	
 	if ( (msg_header->type == ICAP_ACK) || (msg_header->type == ICAP_NAK) ) {
-		return icap_response_notify(icap, msg);
+		if (icap->type == ICAP_APPLICATION_INSTANCE){
+			return icap_application_parse_response(icap, msg);
+		} else {
+			return icap_device_parse_response(icap, msg);
+		}
 	}
 
 	if (msg_header->type == ICAP_MSG) {
