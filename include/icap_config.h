@@ -17,11 +17,11 @@
 #ifndef _ICAP_CONFIG_H_
 #define _ICAP_CONFIG_H_
 
-#define ICAP_MSG_TIMEOUT_US 1000
+#define ICAP_MSG_TIMEOUT_US (600*1000)
 
 /* Choose one of the transport layers */
-//#define ICAP_LINUX_KERNEL_RPMSG /* For use in linux kernel */
-#define ICAP_BM_RPMSG_LITE /* For use in bare metal applications */
+#define ICAP_LINUX_KERNEL_RPMSG /* For use in linux kernel */
+//#define ICAP_BM_RPMSG_LITE /* For use in bare metal applications */
 //#define ICAP_LINUX_RPMSG_CHARDEV /* For use in linux user space applicaiton */
 
 #if defined(ICAP_BM_RPMSG_LITE)
