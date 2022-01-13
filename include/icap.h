@@ -55,12 +55,16 @@
 #define ICAP_FRAME_FORMAT_FLOAT64_BE 17
 
 #define ICAP_ERROR_NOMEM 12
+#define ICAP_ERROR_BUSY 16
 #define ICAP_ERROR_INVALID 22
 #define ICAP_ERROR_MSG_TYPE 42
 #define ICAP_ERROR_MSG_ID 74
 #define ICAP_ERROR_REMOTE_ADDR 78
 #define ICAP_ERROR_MSG_LEN 90
+#define ICAP_ERROR_PROTOCOL 93
 #define ICAP_ERROR_TIMEOUT 110
+#define ICAP_ERROR_NO_BUFS 233
+#define ICAP_ERROR_NOT_SUP 252
 
 
 enum icap_buf_type {
@@ -119,6 +123,11 @@ struct icap_rpmsg_lite_ep_info{
 };
 #endif
 
+/* For contexts which can process messages */
 int32_t icap_parse_msg(struct icap_instance *icap, union icap_remote_addr *src_addr, void *data, uint32_t size);
+
+/* For contexts have to pass a message to other thread for processing */
+int32_t icap_put_msg(struct icap_instance *icap, union icap_remote_addr *src_addr, void *data, uint32_t size);
+int32_t icap_loop(struct icap_instance *icap);
 
 #endif /* _ICAP_H_ */
