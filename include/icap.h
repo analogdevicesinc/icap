@@ -95,6 +95,12 @@ struct icap_buf_descriptor {
 }ICAP_PACKED_END;
 
 ICAP_PACKED_BEGIN
+struct icap_buf_frags {
+	uint32_t buf_id;
+	uint32_t frags;
+}ICAP_PACKED_END;
+
+ICAP_PACKED_BEGIN
 struct icap_buf_offsets {
 	uint32_t num;
 	uint32_t frags_offsets[ICAP_BUF_MAX_FRAGS_OFFSETS_NUM];

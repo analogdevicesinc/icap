@@ -54,6 +54,7 @@ union icap_msg_payload {
 	uint32_t ui;
 	int32_t i;
 	struct icap_buf_descriptor buf;
+	struct icap_buf_frags frags;
 	struct icap_buf_offsets offsets;
 	struct icap_device_features features;
 }ICAP_PACKED_END;
