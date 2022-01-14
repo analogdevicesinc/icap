@@ -20,7 +20,7 @@
 #include "icap.h"
 
 struct icap_device_callbacks {
-	int32_t (*get_device_features)(struct icap_instance *icap);
+	int32_t (*get_device_features)(struct icap_instance *icap, struct icap_device_features *features);
 	int32_t (*device_init)(struct icap_instance *icap, uint32_t dev_id);
 	int32_t (*device_deinit)(struct icap_instance *icap, uint32_t dev_id);
 

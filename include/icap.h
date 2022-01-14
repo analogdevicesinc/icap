@@ -31,29 +31,7 @@
 #error "Invalid platform"
 #endif
 
-#define ICAP_BUF_NAME_LEN (64)
-#define ICAP_BUF_MAX_FRAGS_OFFSETS_NUM (64)
-
-/* Frame formats */
-#define ICAP_FRAME_FORMAT_S8 0
-#define ICAP_FRAME_FORMAT_U8 1
-#define ICAP_FRAME_FORMAT_S16_LE 2
-#define ICAP_FRAME_FORMAT_S16_BE 3
-#define ICAP_FRAME_FORMAT_U16_LE 4
-#define ICAP_FRAME_FORMAT_U16_BE 5
-#define ICAP_FRAME_FORMAT_S24_LE 6
-#define ICAP_FRAME_FORMAT_S24_BE 7
-#define ICAP_FRAME_FORMAT_U24_LE 8
-#define ICAP_FRAME_FORMAT_U24_BE 9
-#define ICAP_FRAME_FORMAT_S32_LE 10
-#define ICAP_FRAME_FORMAT_S32_BE 11
-#define ICAP_FRAME_FORMAT_U32_LE 12
-#define ICAP_FRAME_FORMAT_U32_BE 13
-#define ICAP_FRAME_FORMAT_FLOAT_LE 14
-#define ICAP_FRAME_FORMAT_FLOAT_BE 15
-#define ICAP_FRAME_FORMAT_FLOAT64_LE 16
-#define ICAP_FRAME_FORMAT_FLOAT64_BE 17
-
+/* Error codes */
 #define ICAP_ERROR_NOMEM 12
 #define ICAP_ERROR_BUSY 16
 #define ICAP_ERROR_INVALID 22
@@ -66,6 +44,76 @@
 #define ICAP_ERROR_NO_BUFS 233
 #define ICAP_ERROR_NOT_SUP 252
 
+/* Frame formats */
+#define ICAP_FORMAT_S8 0
+#define ICAP_FORMAT_U8 1
+#define ICAP_FORMAT_S16_LE 2
+#define ICAP_FORMAT_S16_BE 3
+#define ICAP_FORMAT_U16_LE 4
+#define ICAP_FORMAT_U16_BE 5
+#define ICAP_FORMAT_S24_LE 6
+#define ICAP_FORMAT_S24_BE 7
+#define ICAP_FORMAT_U24_LE 8
+#define ICAP_FORMAT_U24_BE 9
+#define ICAP_FORMAT_S32_LE 10
+#define ICAP_FORMAT_S32_BE 11
+#define ICAP_FORMAT_U32_LE 12
+#define ICAP_FORMAT_U32_BE 13
+#define ICAP_FORMAT_FLOAT_LE 14
+#define ICAP_FORMAT_FLOAT_BE 15
+#define ICAP_FORMAT_FLOAT64_LE 16
+#define ICAP_FORMAT_FLOAT64_BE 17
+
+#define ICAP_FMTBIT_S8 (1<<ICAP_FORMAT_S8)
+#define ICAP_FMTBIT_U8 (1<<ICAP_FORMAT_U8)
+#define ICAP_FMTBIT_S16_LE (1<<ICAP_FORMAT_S16_LE)
+#define ICAP_FMTBIT_S16_BE (1<<ICAP_FORMAT_S16_BE)
+#define ICAP_FMTBIT_U16_LE (1<<ICAP_FORMAT_U16_LE)
+#define ICAP_FMTBIT_U16_BE (1<<ICAP_FORMAT_U16_BE)
+#define ICAP_FMTBIT_S24_LE (1<<ICAP_FORMAT_S24_LE)
+#define ICAP_FMTBIT_S24_BE (1<<ICAP_FORMAT_S24_BE)
+#define ICAP_FMTBIT_U24_LE (1<<ICAP_FORMAT_U24_LE)
+#define ICAP_FMTBIT_U24_BE (1<<ICAP_FORMAT_U24_BE)
+#define ICAP_FMTBIT_S32_LE (1<<ICAP_FORMAT_S32_LE)
+#define ICAP_FMTBIT_S32_BE (1<<ICAP_FORMAT_S32_BE)
+#define ICAP_FMTBIT_U32_LE (1<<ICAP_FORMAT_U32_LE)
+#define ICAP_FMTBIT_U32_BE (1<<ICAP_FORMAT_U32_BE)
+#define ICAP_FMTBIT_FLOAT_LE (1<<ICAP_FORMAT_FLOAT_LE)
+#define ICAP_FMTBIT_FLOAT_BE (1<<ICAP_FORMAT_FLOAT_BE)
+#define ICAP_FMTBIT_FLOAT64_LE (1<<ICAP_FORMAT_FLOAT64_LE)
+#define ICAP_FMTBIT_FLOAT64_BE (1<<ICAP_FORMAT_FLOAT64_BE)
+
+/* Rates */
+#define ICAP_RATE_5512	(1<<0)
+#define ICAP_RATE_8000	(1<<1)
+#define ICAP_RATE_11025	(1<<2)
+#define ICAP_RATE_16000	(1<<3)
+#define ICAP_RATE_22050	(1<<4)
+#define ICAP_RATE_32000	(1<<5)
+#define ICAP_RATE_44100	(1<<6)
+#define ICAP_RATE_48000	(1<<7)
+#define ICAP_RATE_64000	(1<<8)
+#define ICAP_RATE_88200	(1<<9)
+#define ICAP_RATE_96000	(1<<10)
+#define ICAP_RATE_176400	(1<<11)
+#define ICAP_RATE_192000	(1<<12)
+#define ICAP_RATE_352800	(1<<13)
+#define ICAP_RATE_384000	(1<<14)
+#define ICAP_RATE_ALL_FREQ	(1<<30)
+
+#define ICAP_RATES_8000_44100 ( \
+		ICAP_RATE_8000 | ICAP_RATE_11025 | ICAP_RATE_16000 | \
+		ICAP_RATE_22050 | ICAP_RATE_32000 | ICAP_RATE_44100 )
+#define ICAP_RATES_8000_48000 (ICAP_RATES_8000_44100 | ICAP_RATE_48000)
+#define ICAP_RATES_8000_96000 ( \
+		ICAP_RATES_8000_48000 | ICAP_RATE_64000 | \
+		ICAP_RATE_88200 | ICAP_RATE_96000 )
+#define ICAP_RATES_8000_192000 (ICAP_RATES_8000_96000 | ICAP_RATE_176400 | ICAP_RATE_192000)
+#define ICAP_RATES_8000_384000 (ICAP_RATES_8000_192000 | ICAP_RATE_352800 | ICAP_RATE_384000)
+
+
+#define ICAP_BUF_NAME_LEN (64)
+#define ICAP_BUF_MAX_FRAGS_OFFSETS_NUM (64)
 
 enum icap_buf_type {
 	ICAP_BUF_CIRCURAL = 0, /* audio fragments are in sequence, separated by gaps, if gap_size=0 the buffer is continuous */
@@ -90,8 +138,8 @@ struct icap_buf_descriptor {
 	uint32_t gap_size;
 	uint32_t frag_size;
 	uint32_t channels;
-	uint32_t pcm_format;
-	uint32_t pcm_rate;
+	uint32_t format;
+	uint32_t rate;
 }ICAP_PACKED_END;
 
 ICAP_PACKED_BEGIN
@@ -107,11 +155,13 @@ struct icap_buf_offsets {
 }ICAP_PACKED_END;
 
 ICAP_PACKED_BEGIN
-struct icap_device_features { //TODO initial - reorganize features to match alsa
-	int32_t playback;
-	int32_t record;
-	uint32_t channels;
-	uint32_t pcm_formats;
+struct icap_device_features {
+	uint32_t type;
+	uint32_t src_buf_max;
+	uint32_t dst_buf_max;
+	uint32_t channels_min;
+	uint32_t channels_max;
+	uint32_t formats;
 	uint32_t rates;
 }ICAP_PACKED_END;
 

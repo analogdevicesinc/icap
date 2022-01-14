@@ -5,7 +5,7 @@
 #include <string.h>
 #include <rpmsg_lite.h>
 
-#define __DEBUG 1
+#define __DEBUG 0
 
 typedef uint16_t atomic_t;
 
@@ -108,7 +108,7 @@ int32_t icap_loop(struct icap_instance *icap) {
 	int32_t ret;
 
 	if (fifo->tail == fifo->head) {
-		return ICAP_SUCCESS;
+		return 0;
 	}
 
 	//Get a message from the fifo
@@ -131,7 +131,7 @@ int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *respon
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
 	uint32_t size = sizeof(struct icap_msg_header) + response->header.payload_len;
 	memcpy(&fifo->last_response, response, size);
-	return ICAP_SUCCESS;
+	return 0;
 }
 
 int32_t icap_wait_for_response_platform(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)

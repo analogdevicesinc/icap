@@ -434,10 +434,10 @@ int32_t icap_application_parse_msg(struct icap_instance *icap, struct icap_msg *
 		break;
 	}
 
-	if (ret) {
-		icap_send_nak(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, ret);
-	} else {
-		if (send_generic_ack) {
+	if (send_generic_ack) {
+		if (ret) {
+			icap_send_nak(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, ret);
+		} else {
 			icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, NULL, 0);
 		}
 	}
@@ -502,11 +502,17 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 	struct icap_msg_header *msg_header = &msg->header;
 	int32_t send_generic_ack = 1;
 	int32_t ret = 0;
+	uint32_t buf_id;
+	struct icap_device_features features;
 
 	switch (msg_header->id) {
 	case ICAP_MSG_GET_DEV_FEATURES:
 		if (cb->get_device_features){
-			ret = cb->get_device_features(icap);//TODO custom ack
+			ret = cb->get_device_features(icap, &features);
+			if (ret >= 0) {
+				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &features, sizeof(struct icap_device_features));
+				send_generic_ack = 0;
+			}
 		}
 		break;
 	case ICAP_MSG_DEV_INIT:
@@ -522,11 +528,21 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 	case ICAP_MSG_PLAYBACK_ADD_SRC:
 		if (cb->add_playback_src){
 			ret = cb->add_playback_src(icap, &msg->payload.buf);
+			if (ret >= 0) {
+				buf_id = ret;
+				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &buf_id, sizeof(buf_id));
+				send_generic_ack = 0;
+			}
 		}
 		break;
 	case ICAP_MSG_PLAYBACK_ADD_DST:
 		if (cb->add_playback_dst){
 			ret = cb->add_playback_dst(icap, &msg->payload.buf);
+			if (ret >= 0) {
+				buf_id = ret;
+				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &buf_id, sizeof(buf_id));
+				send_generic_ack = 0;
+			}
 		}
 		break;
 	case ICAP_MSG_PLAYBACK_REMOVE_SRC:
@@ -567,11 +583,21 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 	case ICAP_MSG_RECORD_ADD_DST:
 		if (cb->add_record_dst){
 			ret = cb->add_record_dst(icap, &msg->payload.buf);
+			if (ret >= 0) {
+				buf_id = ret;
+				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &buf_id, sizeof(buf_id));
+				send_generic_ack = 0;
+			}
 		}
 		break;
 	case ICAP_MSG_RECORD_ADD_SRC:
 		if (cb->add_record_src){
 			ret = cb->add_record_src(icap, &msg->payload.buf);
+			if (ret >= 0) {
+				buf_id = ret;
+				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &buf_id, sizeof(buf_id));
+				send_generic_ack = 0;
+			}
 		}
 		break;
 	case ICAP_MSG_RECORD_REMOVE_DST:
@@ -614,10 +640,10 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 		break;
 	}
 
-	if (ret) {
-		icap_send_nak(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, ret);
-	} else {
-		if (send_generic_ack) {
+	if (send_generic_ack) {
+		if (ret) {
+			icap_send_nak(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, ret);
+		} else {
 			icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, NULL, 0);
 		}
 	}
