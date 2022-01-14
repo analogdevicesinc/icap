@@ -5,8 +5,6 @@
 #include <string.h>
 #include <rpmsg_lite.h>
 
-#define __DEBUG 0
-
 typedef uint16_t atomic_t;
 
 struct _icap_remote_msg {

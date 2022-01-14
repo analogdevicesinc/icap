@@ -31,8 +31,6 @@
 #error "Invalid platform"
 #endif
 
-#define __DEBUG 1
-
 enum icap_instance_type {
 	ICAP_APPLICATION_INSTANCE = 0,
 	ICAP_DEVICE_INSTANCE = 1,
