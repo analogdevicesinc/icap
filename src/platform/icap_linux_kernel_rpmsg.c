@@ -20,30 +20,36 @@
 
 #include <linux/types.h>
 #include <linux/kobject.h>
-#include <linux/kfifo.h>
+#include <linux/skbuff.h>
 #include <linux/rpmsg.h>
-#include <linux/completion.h>
+#include <linux/wait.h>
 
 #define __ICAP_MSG_TIMEOUT usecs_to_jiffies(ICAP_MSG_TIMEOUT_US)
 
-struct icap_rpmsg_queue {
-	struct completion msg_ack_complete;
-	DECLARE_KFIFO(responses, struct icap_msg, 16);
+struct icap_linux_kernel_rpmsg {
+	spinlock_t skb_spinlock;
+	struct sk_buff_head response_queue;
+	struct wait_queue_head response_event;
+	struct mutex response_lock;
+	struct mutex platform_lock;
 };
 
 int32_t icap_init_transport(struct icap_instance *icap)
 {
 	struct rpmsg_endpoint *ept = (struct rpmsg_endpoint*)icap->transport;
 	struct device *dev = &ept->rpdev->dev;
-	struct icap_rpmsg_queue *queue;
+	struct icap_linux_kernel_rpmsg *icap_rpmsg_priv;
 
-	queue = devm_kzalloc(dev, sizeof(struct icap_rpmsg_queue), GFP_KERNEL);
-	if (queue == NULL)
+	icap_rpmsg_priv = devm_kzalloc(dev, sizeof(struct icap_linux_kernel_rpmsg), GFP_KERNEL);
+	if (icap_rpmsg_priv == NULL)
 		return -ENOMEM;
 
-	init_completion(&queue->msg_ack_complete);
-	INIT_KFIFO(queue->responses);
-	ept->priv = queue;
+	mutex_init(&icap_rpmsg_priv->platform_lock);
+	mutex_init(&icap_rpmsg_priv->response_lock);
+	spin_lock_init(&icap_rpmsg_priv->skb_spinlock);
+	init_waitqueue_head(&icap_rpmsg_priv->response_event);
+	skb_queue_head_init(&icap_rpmsg_priv->response_queue);
+	ept->priv = icap_rpmsg_priv;
 
 	return 0;
 }
@@ -52,9 +58,18 @@ int32_t icap_deinit_transport(struct icap_instance *icap)
 {
 	struct rpmsg_endpoint *ept = (struct rpmsg_endpoint*)icap->transport;
 	struct device *dev = &ept->rpdev->dev;
-	struct icap_rpmsg_queue *queue = (struct icap_rpmsg_queue *)ept->priv;
+	struct icap_linux_kernel_rpmsg *icap_rpmsg_priv = (struct icap_linux_kernel_rpmsg *)ept->priv;
+	struct sk_buff *skb;
+	unsigned long flags;
 
-	devm_kfree(dev, queue);
+	spin_lock_irqsave(&icap_rpmsg_priv->skb_spinlock, flags);
+	while (!skb_queue_empty(&icap_rpmsg_priv->response_queue)) {
+		skb = skb_dequeue(&icap_rpmsg_priv->response_queue);
+		kfree_skb(skb);
+	}
+	spin_unlock_irqrestore(&icap_rpmsg_priv->skb_spinlock, flags);
+
+	devm_kfree(dev, icap_rpmsg_priv);
 	ept->priv = NULL;
 
 	return 0;
@@ -72,55 +87,153 @@ int32_t icap_send_platform(struct icap_instance *icap, void *data, uint32_t size
 	return rpmsg_send(ept, data, size);
 }
 
+struct _icap_wait_hint {
+	uint32_t received;
+	uint32_t seq_num;
+	uint32_t msg_id;
+};
+
+struct sk_buff *_find_seq_num(struct sk_buff_head *queue, uint32_t seq_num)
+{
+	struct _icap_wait_hint *hint;
+	struct sk_buff *skb;
+	skb_queue_walk(queue, skb) {
+		hint = (struct _icap_wait_hint *)skb->head;
+		if (hint->seq_num == seq_num) {
+			return skb;
+		}
+	}
+	return NULL;
+}
+
+int32_t icap_prepare_wait(struct icap_instance *icap, struct icap_msg *msg)
+{
+	struct rpmsg_endpoint *ept = (struct rpmsg_endpoint*)icap->transport;
+	struct icap_linux_kernel_rpmsg *icap_rpmsg_priv = (struct icap_linux_kernel_rpmsg *)ept->priv;
+	struct sk_buff *skb;
+	struct _icap_wait_hint *hint;
+	unsigned long flags;
+
+	skb = alloc_skb(sizeof(struct _icap_wait_hint) + sizeof(struct icap_msg), GFP_KERNEL);
+	if (!skb)
+		return -ENOMEM;
+
+	skb_reserve(skb, sizeof(struct _icap_wait_hint));
+
+	hint = (struct _icap_wait_hint *)skb->head;
+	hint->received = 0;
+	hint->msg_id = msg->header.id;
+	hint->seq_num = msg->header.seq_num;
+
+	spin_lock_irqsave(&icap_rpmsg_priv->skb_spinlock, flags);
+	skb_queue_tail(&icap_rpmsg_priv->response_queue, skb);
+	spin_unlock_irqrestore(&icap_rpmsg_priv->skb_spinlock, flags);
+	return 0;
+}
+
 int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *response)
 {
 	struct rpmsg_endpoint *ept = (struct rpmsg_endpoint*)icap->transport;
-	struct icap_rpmsg_queue *queue = (struct icap_rpmsg_queue *)ept->priv;
-	int ret;
+	struct icap_linux_kernel_rpmsg *icap_rpmsg_priv = (struct icap_linux_kernel_rpmsg *)ept->priv;
+	struct sk_buff *skb;
+	struct _icap_wait_hint *hint;
+	unsigned long flags;
+	uint32_t size;
+	int32_t ret;
 
-	ret = kfifo_put(&queue->responses, *response);
-	if (ret) {
-		complete(&queue->msg_ack_complete);
-		return 0;
+	spin_lock_irqsave(&icap_rpmsg_priv->skb_spinlock, flags);
+	skb = _find_seq_num(&icap_rpmsg_priv->response_queue, response->header.seq_num);
+	if (skb != NULL) {
+		/* Waiter found, copy msg to its buffer */
+		size = sizeof(response->header) + response->header.payload_len;
+		skb_put_data(skb, response, size);
+		hint = (struct _icap_wait_hint *)skb->head;
+		hint->received = 1;
+		wake_up_interruptible_all(&icap_rpmsg_priv->response_event);
+		ret = 0;
 	} else {
-		return -ICAP_ERROR_NOMEM;
+		/*
+		 * Got a unexpected or very late message,
+		 * waiter could timeout and remove from the hint from the queue.
+		 * Drop the message.
+		 */
+		ret = -ICAP_ERROR_TIMEOUT;
 	}
+	spin_unlock_irqrestore(&icap_rpmsg_priv->skb_spinlock, flags);
+	return ret;
 }
 
-int32_t icap_wait_for_response_platform(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
+int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
 {
 	struct rpmsg_endpoint *ept = (struct rpmsg_endpoint*)icap->transport;
-	struct icap_rpmsg_queue *queue = (struct icap_rpmsg_queue *)ept->priv;
+	struct icap_linux_kernel_rpmsg *icap_rpmsg_priv = (struct icap_linux_kernel_rpmsg *)ept->priv;
 	struct device *dev = &ept->rpdev->dev;
 	const uint8_t icap_id = ept->rpdev->dst;
 	char _env[64];
 	char *envp[] = { _env, NULL };
-	long timeout = __ICAP_MSG_TIMEOUT;
-	int ret;
+	long timeout;
+	unsigned long flags;
+	struct sk_buff *skb;
+	struct _icap_wait_hint *hint;
+	struct icap_msg *tmp_msg;
+	int32_t ret;
 
-	while (1){
-		timeout = wait_for_completion_interruptible_timeout(&queue->msg_ack_complete, __ICAP_MSG_TIMEOUT);
-		if (timeout > 0) {
-			ret = kfifo_get(&queue->responses, response);
-			if (ret && response->header.seq_num == seq_num) {
-				return 0;
-			} else {
-				continue;
-			}
-		} else if (timeout < 0) {
-			if (timeout == -ERESTARTSYS) {
-				dev_info(dev, "ICAP_%d comm interrupted\n", icap_id);
-			} else {
-				dev_err(dev, "ICAP_%d comm error %ld\n", icap_id, timeout);
-			}
-			continue;
-		} else {
-			//timeout
-			snprintf(_env, sizeof(_env), "EVENT=ICAP%d_TIMEOUT", icap_id);
-			kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
-			return -ETIMEDOUT;
-		}
+	mutex_lock(&icap_rpmsg_priv->response_lock);
+	spin_lock_irqsave(&icap_rpmsg_priv->skb_spinlock, flags);
+	skb = _find_seq_num(&icap_rpmsg_priv->response_queue, seq_num);
+	spin_unlock_irqrestore(&icap_rpmsg_priv->skb_spinlock, flags);
+	mutex_unlock(&icap_rpmsg_priv->response_lock);
+
+	if (skb == NULL) {
+		/* This should never happen */
+		return -ICAP_ERROR_PROTOCOL;
 	}
+	hint = (struct _icap_wait_hint *)skb->head;
+
+	timeout = wait_event_interruptible_timeout(icap_rpmsg_priv->response_event, hint->received, __ICAP_MSG_TIMEOUT);
+
+	/* Remove the skb from response queue */
+	mutex_lock(&icap_rpmsg_priv->response_lock);
+	spin_lock_irqsave(&icap_rpmsg_priv->skb_spinlock, flags);
+	skb_unlink(skb, &icap_rpmsg_priv->response_queue);
+	spin_unlock_irqrestore(&icap_rpmsg_priv->skb_spinlock, flags);
+	mutex_unlock(&icap_rpmsg_priv->response_lock);
+
+	if (timeout > 0) {
+		/* Got response in time */
+		tmp_msg = (struct icap_msg *)skb->data;
+		if (tmp_msg->header.type == ICAP_NAK){
+			ret = tmp_msg->payload.i;
+		} else {
+			if (response) {
+				memcpy(response, skb->data, skb->len);
+			}
+			ret = 0;
+		}
+	} else if (timeout < 0) {
+		/* Got error */
+		ret = timeout;
+	} else {
+		/* Timeout */
+		snprintf(_env, sizeof(_env), "EVENT=ICAP%d_MSG%d_TIMEOUT", icap_id, hint->msg_id);
+		kobject_uevent_env(&dev->kobj, KOBJ_CHANGE, envp);
+		ret = -ETIMEDOUT;
+	}
+
+	kfree_skb(skb);
+	return ret;
+}
+
+void icap_platform_lock(struct icap_instance *icap) {
+	struct rpmsg_endpoint *ept = (struct rpmsg_endpoint*)icap->transport;
+	struct icap_linux_kernel_rpmsg *icap_rpmsg_priv = (struct icap_linux_kernel_rpmsg *)ept->priv;
+	mutex_lock(&icap_rpmsg_priv->platform_lock);
+}
+
+void icap_platform_unlock(struct icap_instance *icap){
+	struct rpmsg_endpoint *ept = (struct rpmsg_endpoint*)icap->transport;
+	struct icap_linux_kernel_rpmsg *icap_rpmsg_priv = (struct icap_linux_kernel_rpmsg *)ept->priv;
+	mutex_unlock(&icap_rpmsg_priv->platform_lock);
 }
 
 #endif /* ICAP_LINUX_KERNEL_RPMSG */

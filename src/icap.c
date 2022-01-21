@@ -40,6 +40,9 @@ int32_t icap_application_init(struct icap_instance *icap, struct icap_applicatio
 	if ( (icap == NULL) || (cb == NULL) || (transport == NULL)) {
 		return -ICAP_ERROR_INVALID;
 	}
+	if ( (icap->callbacks != NULL) || (icap->transport != NULL)){
+		return -ICAP_ERROR_BUSY;
+	}
 	icap->type = ICAP_APPLICATION_INSTANCE;
 	icap->transport = transport;
 	icap->priv = priv;
@@ -49,7 +52,14 @@ int32_t icap_application_init(struct icap_instance *icap, struct icap_applicatio
 }
 
 int32_t icap_application_deinit(struct icap_instance *icap) {
-	return icap_deinit_transport(icap);
+	int32_t ret;
+	ret = icap_deinit_transport(icap);
+	if (ret) {
+		return ret;
+	}
+	icap->callbacks = NULL;
+	icap->transport = NULL;
+	return 0;
 }
 
 int32_t icap_device_init(struct icap_instance *icap, struct icap_device_callbacks *cb, void *transport, void *priv) {
@@ -68,14 +78,13 @@ int32_t icap_device_deinit(struct icap_instance *icap) {
 	return icap_deinit_transport(icap);
 }
 
-int32_t icap_send(struct icap_instance *icap, enum icap_msg_id id, enum icap_msg_type type, uint32_t *seq_num, void *data, uint32_t size)
+int32_t icap_send_msg(struct icap_instance *icap, enum icap_msg_id id, void *data, uint32_t size, uint32_t sync, struct icap_msg *response)
 {
 	struct icap_msg msg;
+	uint32_t seq_num;
+	int32_t ret;
 
-	if (seq_num == NULL) {
-		return -ICAP_ERROR_INVALID;
-	}
-
+	/* Copy data to msg payload */
 	if (data) {
 		if (size > sizeof(msg.payload)) {
 			return -ICAP_ERROR_MSG_LEN;
@@ -85,14 +94,56 @@ int32_t icap_send(struct icap_instance *icap, enum icap_msg_id id, enum icap_msg
 		size = 0;
 	}
 
+	/* Increment the seq_num */
+	icap_platform_lock(icap);
+	icap->seq_num++;
+	seq_num = icap->seq_num;
+	icap_platform_unlock(icap);
+
+	/* Initialize msg header */
 	msg.header.protocol_version = ICAP_PROTOCOL_VERSION;
-	if (type == ICAP_MSG){
-		icap->seq_num++;
-		msg.header.seq_num = icap->seq_num;
-		*seq_num = msg.header.seq_num;
-	} else {
-		msg.header.seq_num = *seq_num;
+	msg.header.seq_num = seq_num;
+	msg.header.id = id;
+	msg.header.type = ICAP_MSG;
+	msg.header.flags = 0;
+	memset(&msg.header.reserved, 0, sizeof(msg.header.reserved));
+	msg.header.payload_len = size;
+
+	size += sizeof(msg.header);
+
+	if (sync) {
+		ret = icap_prepare_wait(icap, &msg);
+		if (ret) {
+			return ret;
+		}
 	}
+
+	ret = icap_send_platform(icap, &msg, size);
+
+	if (!sync) {
+		return ret;
+	}
+
+	return icap_wait_for_response(icap, seq_num, response);
+}
+
+int32_t icap_send_response(struct icap_instance *icap, enum icap_msg_id id, enum icap_msg_type type, uint32_t seq_num, void *data, uint32_t size)
+{
+	struct icap_msg msg;
+
+	/* Copy data to response payload */
+	if (data) {
+		if (size > sizeof(msg.payload)) {
+			return -ICAP_ERROR_MSG_LEN;
+		}
+		memcpy(&msg.payload, data, size);
+	} else {
+		size = 0;
+	}
+
+	/* Initialize msg header */
+	msg.header.protocol_version = ICAP_PROTOCOL_VERSION;
+	msg.header.seq_num = seq_num;
 	msg.header.id = id;
 	msg.header.type = type;
 	msg.header.flags = 0;
@@ -104,292 +155,247 @@ int32_t icap_send(struct icap_instance *icap, enum icap_msg_id id, enum icap_msg
 	return icap_send_platform(icap, &msg, size);
 }
 
-int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
-{
-	int32_t ret;
-
-	ret = icap_wait_for_response_platform(icap, seq_num, response);
-	if (ret) {
-		return ret;
-	}
-
-	if (response->header.type == ICAP_NAK) {
-		return response->payload.i;
-	} else {
-		return 0;
-	}
-}
-
-int32_t icap_send_sync(struct icap_instance *icap, enum icap_msg_id id, void *data, uint32_t size){
-	struct icap_msg msg;
-	uint32_t seq_num;
-	int ret;
-	ret = icap_send(icap, id, ICAP_MSG, &seq_num, data, size);
-	if (ret) {
-		return ret;
-	}
-	return icap_wait_for_response(icap, seq_num, &msg);
-}
-
 int32_t icap_send_ack(struct icap_instance *icap, enum icap_msg_id id, uint32_t seq_num, void *data, uint32_t size){
-	return icap_send(icap, id, ICAP_ACK, &seq_num, data, size);
+	return icap_send_response(icap, id, ICAP_ACK, seq_num, data, size);
 }
 
 int32_t icap_send_nak(struct icap_instance *icap, enum icap_msg_id id, uint32_t seq_num, int32_t error){
-	return icap_send(icap, id, ICAP_NAK, &seq_num, &error, sizeof(error));
+	return icap_send_response(icap, id, ICAP_NAK, seq_num, &error, sizeof(error));
 }
 
 int32_t icap_get_device_features(struct icap_instance *icap, struct icap_device_features *features) {
-	uint32_t seq_num;
+	struct icap_msg response;
 	int32_t ret;
-	struct icap_msg msg;
 
 	if(features == NULL){
 		return -ICAP_ERROR_INVALID;
 	}
 
-	ret = icap_send(icap, ICAP_MSG_GET_DEV_FEATURES, ICAP_MSG, &seq_num, NULL, 0);
+	ret = icap_send_msg(icap, ICAP_MSG_GET_DEV_FEATURES, NULL, 0, 1, &response);
 	if (ret) {
 		return ret;
 	}
-
-	ret = icap_wait_for_response(icap, seq_num, &msg);
-	if (ret) {
-		return ret;
-	}
-
-	if (msg.header.payload_len != sizeof(struct icap_device_features)){
+	if (response.header.payload_len != sizeof(struct icap_device_features)){
 		return -ICAP_ERROR_MSG_LEN;
 	}
-	memcpy(features, &msg.payload, sizeof(struct icap_device_features));
+	memcpy(features, &response.payload, sizeof(struct icap_device_features));
 	return 0;
 }
 
 int32_t icap_request_device_init(struct icap_instance *icap, uint32_t dev_id) {
-	return icap_send_sync(icap, ICAP_MSG_DEV_INIT, &dev_id, sizeof(dev_id));
+	return icap_send_msg(icap, ICAP_MSG_DEV_INIT, &dev_id, sizeof(dev_id), 1, NULL);
 }
 
 int32_t icap_request_device_deinit(struct icap_instance *icap, uint32_t dev_id) {
-	return icap_send_sync(icap, ICAP_MSG_DEV_DEINIT, &dev_id, sizeof(dev_id));
+	return icap_send_msg(icap, ICAP_MSG_DEV_DEINIT, &dev_id, sizeof(dev_id), 1, NULL);
 }
 
 int32_t icap_add_playback_src(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
 {
-	uint32_t seq_num;
+	struct icap_msg response;
 	int32_t ret;
-	struct icap_msg msg;
 
-	if (buf_id == NULL) {
+	if ((buf == NULL) || (buf_id == NULL)) {
 		return -ICAP_ERROR_INVALID;
 	}
 
-	ret = icap_send(icap, ICAP_MSG_PLAYBACK_ADD_SRC, ICAP_MSG, &seq_num, buf, sizeof(struct icap_buf_descriptor));
+	ret = icap_send_msg(icap, ICAP_MSG_PLAYBACK_ADD_SRC, buf, sizeof(struct icap_buf_descriptor), 1, &response);
 	if (ret) {
 		return ret;
 	}
 
-	ret = icap_wait_for_response(icap, seq_num, &msg);
-	if (ret) {
-		return ret;
-	}
-
-	if (msg.header.payload_len != sizeof(uint32_t)){
+	if (response.header.payload_len != sizeof(uint32_t)){
 		return -ICAP_ERROR_MSG_LEN;
 	}
-	*buf_id = msg.payload.ui;
+	*buf_id = response.payload.ui;
 
 	return 0;
 }
 
 int32_t icap_add_playback_dst(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
 {
-	uint32_t seq_num;
+	struct icap_msg response;
 	int32_t ret;
-	struct icap_msg msg;
 
-	if (buf_id == NULL) {
+	if ((buf == NULL) || (buf_id == NULL)) {
 		return -ICAP_ERROR_INVALID;
 	}
 
-	ret = icap_send(icap, ICAP_MSG_PLAYBACK_ADD_DST, ICAP_MSG, &seq_num, buf, sizeof(struct icap_buf_descriptor));
+	ret = icap_send_msg(icap, ICAP_MSG_PLAYBACK_ADD_DST, buf, sizeof(struct icap_buf_descriptor), 1, &response);
 	if (ret) {
 		return ret;
 	}
 
-	ret = icap_wait_for_response(icap, seq_num, &msg);
-	if (ret) {
-		return ret;
-	}
-
-	if (msg.header.payload_len != sizeof(uint32_t)){
+	if (response.header.payload_len != sizeof(uint32_t)){
 		return -ICAP_ERROR_MSG_LEN;
 	}
-	*buf_id = msg.payload.ui;
+	*buf_id = response.payload.ui;
 
 	return 0;
 }
 
 int32_t icap_remove_playback_src(struct icap_instance *icap, uint32_t buf_id)
 {
-	return icap_send_sync(icap, ICAP_MSG_PLAYBACK_REMOVE_SRC, &buf_id, sizeof(buf_id));
+	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_REMOVE_SRC, &buf_id, sizeof(buf_id), 1, NULL);
 }
 
 int32_t icap_remove_playback_dst(struct icap_instance *icap, uint32_t buf_id)
 {
-	return icap_send_sync(icap, ICAP_MSG_PLAYBACK_REMOVE_DST, &buf_id, sizeof(buf_id));
+	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_REMOVE_DST, &buf_id, sizeof(buf_id), 1, NULL);
 }
 
 int32_t icap_playback_start(struct icap_instance *icap)
 {
-	return icap_send_sync(icap, ICAP_MSG_PLAYBACK_START, NULL, 0);
+	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_START, NULL, 0, 1, NULL);
 }
 
 int32_t icap_playback_stop(struct icap_instance *icap)
 {
-	return icap_send_sync(icap, ICAP_MSG_PLAYBACK_STOP, NULL, 0);
+	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_STOP, NULL, 0, 1, NULL);
 }
 
 int32_t icap_playback_pause(struct icap_instance *icap)
 {
-	return icap_send_sync(icap, ICAP_MSG_PLAYBACK_PAUSE, NULL, 0);
+	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_PAUSE, NULL, 0, 1, NULL);
 }
 
 int32_t icap_playback_resume(struct icap_instance *icap)
 {
-	return icap_send_sync(icap, ICAP_MSG_PLAYBACK_RESUME, NULL, 0);
+	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_RESUME, NULL, 0, 1, NULL);
 }
 
 int32_t icap_playback_frags(struct icap_instance *icap, struct icap_buf_offsets *offsets)
 {
-	return icap_send_sync(icap, ICAP_MSG_PLAYBACK_BUF_OFFSETS, offsets, sizeof(struct icap_buf_offsets));
+	if (offsets == NULL) {
+		return -ICAP_ERROR_INVALID;
+	}
+	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_BUF_OFFSETS, offsets, sizeof(struct icap_buf_offsets), 1, NULL);
 }
 
 int32_t icap_playback_frag_ready(struct icap_instance *icap, struct icap_buf_frags *frags)
 {
-	uint32_t seq_num;
-	return icap_send(icap, ICAP_MSG_PLAYBACK_FRAG_READY, ICAP_MSG, &seq_num, frags, sizeof(struct icap_buf_frags));
+	if (frags == NULL) {
+		return -ICAP_ERROR_INVALID;
+	}
+	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_FRAG_READY, frags, sizeof(struct icap_buf_frags), 0, NULL);
 }
 
 int32_t icap_playback_xrun(struct icap_instance *icap, struct icap_buf_frags *frags)
 {
-	uint32_t seq_num;
-	return icap_send(icap, ICAP_MSG_PLAYBACK_XRUN, ICAP_MSG, &seq_num, frags, sizeof(struct icap_buf_frags));
+	if (frags == NULL) {
+		return -ICAP_ERROR_INVALID;
+	}
+	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_XRUN, frags, sizeof(struct icap_buf_frags), 0, NULL);
 }
 
 int32_t icap_add_record_dst(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
 {
-	uint32_t seq_num;
+	struct icap_msg response;
 	int32_t ret;
-	struct icap_msg msg;
 
-	if (buf_id == NULL) {
+	if ((buf == NULL) || (buf_id == NULL)) {
 		return -ICAP_ERROR_INVALID;
 	}
 
-	ret = icap_send(icap, ICAP_MSG_RECORD_ADD_DST, ICAP_MSG, &seq_num, buf, sizeof(struct icap_buf_descriptor));
+	ret = icap_send_msg(icap, ICAP_MSG_RECORD_ADD_DST, buf, sizeof(struct icap_buf_descriptor), 1, &response);
 	if (ret) {
 		return ret;
 	}
 
-	ret = icap_wait_for_response(icap, seq_num, &msg);
-	if (ret) {
-		return ret;
-	}
-
-	if (msg.header.payload_len != sizeof(uint32_t)){
+	if (response.header.payload_len != sizeof(uint32_t)){
 		return -ICAP_ERROR_MSG_LEN;
 	}
-	*buf_id = msg.payload.ui;
+	*buf_id = response.payload.ui;
 
 	return 0;
 }
 
 int32_t icap_add_record_src(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
 {
-	uint32_t seq_num;
+	struct icap_msg response;
 	int32_t ret;
-	struct icap_msg msg;
 
-	if (buf_id == NULL) {
+	if ((buf == NULL) || (buf_id == NULL)) {
 		return -ICAP_ERROR_INVALID;
 	}
 
-	ret = icap_send(icap, ICAP_MSG_RECORD_ADD_SRC, ICAP_MSG, &seq_num, buf, sizeof(struct icap_buf_descriptor));
+	ret = icap_send_msg(icap, ICAP_MSG_RECORD_ADD_SRC, buf, sizeof(struct icap_buf_descriptor), 1, &response);
 	if (ret) {
 		return ret;
 	}
 
-	ret = icap_wait_for_response(icap, seq_num, &msg);
-	if (ret) {
-		return ret;
-	}
-
-	if (msg.header.payload_len != sizeof(uint32_t)){
+	if (response.header.payload_len != sizeof(uint32_t)){
 		return -ICAP_ERROR_MSG_LEN;
 	}
-	*buf_id = msg.payload.ui;
+	*buf_id = response.payload.ui;
 
 	return 0;
 }
 
 int32_t icap_remove_record_dst(struct icap_instance *icap, uint32_t buf_id)
 {
-	return icap_send_sync(icap, ICAP_MSG_RECORD_REMOVE_DST, &buf_id, sizeof(buf_id));
+	return icap_send_msg(icap, ICAP_MSG_RECORD_REMOVE_DST, &buf_id, sizeof(buf_id), 1, NULL);
 }
 
 int32_t icap_remove_record_src(struct icap_instance *icap, uint32_t buf_id)
 {
-	return icap_send_sync(icap, ICAP_MSG_RECORD_REMOVE_SRC, &buf_id, sizeof(buf_id));
+	return icap_send_msg(icap, ICAP_MSG_RECORD_REMOVE_SRC, &buf_id, sizeof(buf_id), 1, NULL);
 }
 
 int32_t icap_record_start(struct icap_instance *icap)
 {
-	return icap_send_sync(icap, ICAP_MSG_RECORD_START, NULL, 0);
+	return icap_send_msg(icap, ICAP_MSG_RECORD_START, NULL, 0, 1, NULL);
 }
 
 int32_t icap_record_stop(struct icap_instance *icap)
 {
-	return icap_send_sync(icap, ICAP_MSG_RECORD_STOP, NULL, 0);
+	return icap_send_msg(icap, ICAP_MSG_RECORD_STOP, NULL, 0, 1, NULL);
 }
 
 int32_t icap_record_pause(struct icap_instance *icap)
 {
-	return icap_send_sync(icap, ICAP_MSG_RECORD_PAUSE, NULL, 0);
+	return icap_send_msg(icap, ICAP_MSG_RECORD_PAUSE, NULL, 0, 1, NULL);
 }
 
 int32_t icap_record_resume(struct icap_instance *icap)
 {
-	return icap_send_sync(icap, ICAP_MSG_RECORD_RESUME, NULL, 0);
+	return icap_send_msg(icap, ICAP_MSG_RECORD_RESUME, NULL, 0, 1, NULL);
 }
 
 int32_t icap_record_frags(struct icap_instance *icap, struct icap_buf_offsets *offsets)
 {
-	return icap_send_sync(icap, ICAP_MSG_RECORD_BUF_OFFSETS, offsets, sizeof(struct icap_buf_offsets));
+	if (offsets == NULL) {
+		return -ICAP_ERROR_INVALID;
+	}
+	return icap_send_msg(icap, ICAP_MSG_RECORD_BUF_OFFSETS, offsets, sizeof(struct icap_buf_offsets), 1, NULL);
 }
 
 int32_t icap_record_frag_ready(struct icap_instance *icap, struct icap_buf_frags *frags)
 {
-	uint32_t seq_num;
-	return icap_send(icap, ICAP_MSG_RECORD_FRAG_READY, ICAP_MSG, &seq_num, frags, sizeof(struct icap_buf_frags));
+	if (frags == NULL) {
+		return -ICAP_ERROR_INVALID;
+	}
+	return icap_send_msg(icap, ICAP_MSG_RECORD_FRAG_READY, frags, sizeof(struct icap_buf_frags), 0, NULL);
 }
 
 int32_t icap_record_xrun(struct icap_instance *icap, struct icap_buf_frags *frags)
 {
-	uint32_t seq_num;
-	return icap_send(icap, ICAP_MSG_RECORD_XRUN, ICAP_MSG, &seq_num, frags, sizeof(struct icap_buf_frags));
+	if (frags == NULL) {
+		return -ICAP_ERROR_INVALID;
+	}
+	return icap_send_msg(icap, ICAP_MSG_RECORD_XRUN, frags, sizeof(struct icap_buf_frags), 0, NULL);
 }
 
 int32_t icap_error(struct icap_instance *icap, uint32_t error)
 {
-	uint32_t seq_num;
-	return icap_send(icap, ICAP_MSG_ERROR, ICAP_MSG, &seq_num, &error, sizeof(error));
+	return icap_send_msg(icap, ICAP_MSG_ERROR, &error, sizeof(error), 0, NULL);
 }
 
 int32_t icap_application_parse_response(struct icap_instance *icap, struct icap_msg *msg)
 {
 	/*
 	 * Currently all responses to application are for synchronous messages
-	 * notify the wait function.
+	 * notify the waiter.
 	 */
 	return icap_response_notify(icap, msg);
 }
@@ -655,7 +661,7 @@ int32_t icap_parse_msg(struct icap_instance *icap, union icap_remote_addr *src_a
 	int32_t ret;
 
 	if (msg_header->protocol_version != ICAP_PROTOCOL_VERSION) {
-		return -ICAP_ERROR_PROTOCOL;
+		return -ICAP_ERROR_PROTOCOL_NOT_SUP;
 	}
 
 	if (size != sizeof(struct icap_msg_header) + msg_header->payload_len) {
