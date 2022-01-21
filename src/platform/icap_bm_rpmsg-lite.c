@@ -123,6 +123,11 @@ int32_t icap_loop(struct icap_instance *icap) {
 	return ret;
 }
 
+int32_t icap_prepare_wait(struct icap_instance *icap, struct icap_msg *msg)
+{
+	return 0;
+}
+
 int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *response)
 {
 	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
@@ -132,7 +137,7 @@ int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *respon
 	return 0;
 }
 
-int32_t icap_wait_for_response_platform(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
+int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
 {
 	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
@@ -143,14 +148,31 @@ int32_t icap_wait_for_response_platform(struct icap_instance *icap, uint32_t seq
     	icap_loop(icap);
     	if (fifo->last_response.header.seq_num == seq_num) {
     		/* Got proper response */
-    		size = sizeof(struct icap_msg_header) + fifo->last_response.header.payload_len;
-    		memcpy(response, &fifo->last_response, size);
-    		return 0;
+
+    		if (fifo->last_response.header.type == ICAP_NAK){
+    			return fifo->last_response.payload.i;
+    		} else {
+    			if (response) {
+    				size = sizeof(struct icap_msg_header) + fifo->last_response.header.payload_len;
+    				memcpy(response, &fifo->last_response, size);
+    			}
+    			return 0;
+    		}
     	}
         elapsed = platform_us_clock_tick() - start;
     }while(elapsed < ICAP_MSG_TIMEOUT_US);
 
     return -ICAP_ERROR_TIMEOUT;
+}
+
+void icap_platform_lock(struct icap_instance *icap)
+{
+	return;
+}
+
+void icap_platform_unlock(struct icap_instance *icap)
+{
+	return;
 }
 
 #endif /* ICAP_BM_RPMSG_LITE */
