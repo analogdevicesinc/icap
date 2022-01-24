@@ -19,6 +19,7 @@ struct _icap_msg_fifo {
 	struct _icap_remote_msg remote_msg[ICAP_MSG_QUEUE_SIZE];
 	struct icap_msg last_response;
 	uint32_t in_use;
+	struct icap_instance *icap;
 };
 
 static struct _icap_msg_fifo icap_response_fifo[ICAP_MAX_ICAP_INSTANCES] = {{0}};
@@ -40,6 +41,8 @@ int32_t icap_init_transport(struct icap_instance *icap)
 	}
 
 	memset(&icap_response_fifo[i], 0, sizeof(struct _icap_msg_fifo));
+
+	icap_response_fifo[i].icap = icap;
 	icap_response_fifo[i].in_use = 1;
 
 	ept_info->priv = &icap_response_fifo[i];
@@ -143,9 +146,15 @@ int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, str
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
     uint32_t start, elapsed, size;
     start = platform_us_clock_tick();
+    uint32_t i;
 
     do {
-    	icap_loop(icap);
+    	for (i = 0; i < ICAP_MAX_ICAP_INSTANCES; i++) {
+    		if (icap_response_fifo[i].in_use) {
+    			icap_loop(icap_response_fifo[i].icap);
+    		}
+    	}
+
     	if (fifo->last_response.header.seq_num == seq_num) {
     		/* Got proper response */
 
