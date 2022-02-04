@@ -21,12 +21,11 @@
 #include "icap_compiler.h"
 
 #if defined(ICAP_LINUX_KERNEL_RPMSG)
-#include <linux/types.h>
+#include "icap_linux_kernel_rpmsg.h"
 #elif defined(ICAP_BM_RPMSG_LITE)
-#include <stdint.h>
-#include <rpmsg_lite.h>
+#include "icap_bm_rpmsg-lite.h"
 #elif defined(ICAP_LINUX_RPMSG_CHARDEV)
-#include <stdint.h>
+#include "icap_linux_rpmsg_chardev.h"
 #else
 #error "Invalid platform"
 #endif
@@ -35,6 +34,7 @@
 #define ICAP_ERROR_NOMEM 12
 #define ICAP_ERROR_BUSY 16
 #define ICAP_ERROR_INVALID 22
+#define ICAP_ERROR_BROKEN_CON 32
 #define ICAP_ERROR_MSG_TYPE 42
 #define ICAP_ERROR_PROTOCOL 71
 #define ICAP_ERROR_MSG_ID 74
@@ -116,6 +116,11 @@
 #define ICAP_BUF_NAME_LEN (64)
 #define ICAP_BUF_MAX_FRAGS_OFFSETS_NUM (64)
 
+enum icap_dev_type {
+	ICAP_DEV_PLAYBACK = 0,
+	ICAP_DEV_RECORD = 1,
+};
+
 enum icap_buf_type {
 	ICAP_BUF_CIRCURAL = 0, /* audio fragments are in sequence, separated by gaps, if gap_size=0 the buffer is continuous */
 	ICAP_BUF_SCATTERED = 1, /* audio fragments are scattered, needs new offsets array after fragments are consumed */
@@ -123,7 +128,7 @@ enum icap_buf_type {
 
 struct icap_instance {
 	uint32_t type;
-	void *transport;
+	struct icap_transport transport;
 	void *priv;
 	void *callbacks;
 	uint32_t seq_num;
@@ -132,7 +137,7 @@ struct icap_instance {
 ICAP_PACKED_BEGIN
 struct icap_buf_descriptor {
 	char name[ICAP_BUF_NAME_LEN];
-	int32_t device_id; /* used with ICAP_MSG_PLAYBACK_ADD_DST and ICAP_MSG_RECORD_ADD_SRC to specify device for the buffers */
+	int32_t dev_id;
 	uint64_t buf;
 	uint32_t buf_size;
 	uint32_t type;
@@ -141,6 +146,7 @@ struct icap_buf_descriptor {
 	uint32_t channels;
 	uint32_t format;
 	uint32_t rate;
+	uint32_t report_frags;
 }ICAP_PACKED_END;
 
 ICAP_PACKED_BEGIN
@@ -151,6 +157,7 @@ struct icap_buf_frags {
 
 ICAP_PACKED_BEGIN
 struct icap_buf_offsets {
+	uint32_t buf_id;
 	uint32_t num;
 	uint32_t frags_offsets[ICAP_BUF_MAX_FRAGS_OFFSETS_NUM];
 }ICAP_PACKED_END;
@@ -164,6 +171,13 @@ struct icap_device_features {
 	uint32_t channels_max;
 	uint32_t formats;
 	uint32_t rates;
+}ICAP_PACKED_END;
+
+struct icap_device_params {
+	uint32_t dev_id;
+	uint32_t channels;
+	uint32_t format;
+	uint32_t rate;
 }ICAP_PACKED_END;
 
 union icap_remote_addr {

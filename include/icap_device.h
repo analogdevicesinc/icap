@@ -20,45 +20,31 @@
 #include "icap.h"
 
 struct icap_device_callbacks {
+	int32_t (*get_device_num)(struct icap_instance *icap, uint32_t *dev_num);
 	int32_t (*get_device_features)(struct icap_instance *icap, struct icap_device_features *features);
-	int32_t (*device_init)(struct icap_instance *icap, uint32_t dev_id);
+	int32_t (*device_init)(struct icap_instance *icap, struct icap_device_params *params);
 	int32_t (*device_deinit)(struct icap_instance *icap, uint32_t dev_id);
 
-	int32_t (*add_playback_src)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
-	int32_t (*add_playback_dst)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
-	int32_t (*remove_playback_src)(struct icap_instance *icap, uint32_t buf_id);
-	int32_t (*remove_playback_dst)(struct icap_instance *icap, uint32_t buf_id);
-	int32_t (*playback_start)(struct icap_instance *icap);
-	int32_t (*playback_stop)(struct icap_instance *icap);
-	int32_t (*playback_pause)(struct icap_instance *icap);
-	int32_t (*playback_resume)(struct icap_instance *icap);
-	int32_t (*playback_frags)(struct icap_instance *icap, struct icap_buf_offsets *offsets);
-	int32_t (*playback_frag_ready_response)(struct icap_instance *icap, int32_t error);
-	int32_t (*playback_xrun_response)(struct icap_instance *icap, int32_t error);
+	int32_t (*add_src)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
+	int32_t (*add_dst)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
+	int32_t (*remove_src)(struct icap_instance *icap, uint32_t buf_id);
+	int32_t (*remove_dst)(struct icap_instance *icap, uint32_t buf_id);
+	int32_t (*start)(struct icap_instance *icap, uint32_t dev_id);
+	int32_t (*stop)(struct icap_instance *icap, uint32_t dev_id);
+	int32_t (*pause)(struct icap_instance *icap, uint32_t dev_id);
+	int32_t (*resume)(struct icap_instance *icap, uint32_t dev_id);
+	int32_t (*frags)(struct icap_instance *icap, struct icap_buf_offsets *offsets);
+	int32_t (*frag_ready_response)(struct icap_instance *icap, int32_t error);
+	int32_t (*xrun_response)(struct icap_instance *icap, int32_t error);
 
-	int32_t (*add_record_dst)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
-	int32_t (*add_record_src)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
-	int32_t (*remove_record_dst)(struct icap_instance *icap, uint32_t buf_id);
-	int32_t (*remove_record_src)(struct icap_instance *icap, uint32_t buf_id);
-	int32_t (*record_start)(struct icap_instance *icap);
-	int32_t (*record_stop)(struct icap_instance *icap);
-	int32_t (*record_pause)(struct icap_instance *icap);
-	int32_t (*record_resume)(struct icap_instance *icap);
-	int32_t (*record_frags)(struct icap_instance *icap, struct icap_buf_offsets *offsets);
-	int32_t (*record_frag_ready_response)(struct icap_instance *icap, int32_t error);
-	int32_t (*record_xrun_response)(struct icap_instance *icap, int32_t error);
-
-	int32_t (*playback_error_response)(struct icap_instance *icap, int32_t error);
+	int32_t (*error_response)(struct icap_instance *icap, int32_t error);
 };
 
 int32_t icap_device_init(struct icap_instance *icap, struct icap_device_callbacks *cb, void *transport, void *priv);
 int32_t icap_device_deinit(struct icap_instance *icap);
 
-int32_t icap_playback_frag_ready(struct icap_instance *icap, struct icap_buf_frags *frags);
-int32_t icap_playback_xrun(struct icap_instance *icap, struct icap_buf_frags *frags);
-
-int32_t icap_record_frag_ready(struct icap_instance *icap, struct icap_buf_frags *frags);
-int32_t icap_record_xrun(struct icap_instance *icap, struct icap_buf_frags *frags);
+int32_t icap_frag_ready(struct icap_instance *icap, struct icap_buf_frags *frags);
+int32_t icap_xrun(struct icap_instance *icap, struct icap_buf_frags *frags);
 
 int32_t icap_error(struct icap_instance *icap, uint32_t error);
 
