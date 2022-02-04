@@ -18,37 +18,23 @@
 #include "../include/icap_device.h"
 #include "platform/icap_platform.h"
 
-#if defined(ICAP_LINUX_KERNEL_RPMSG)
-#include <linux/stddef.h>
-#include <linux/string.h>
-#elif defined(ICAP_BM_RPMSG_LITE)
-#include <stddef.h>
-#include <string.h>
-#elif defined(ICAP_LINUX_RPMSG_CHARDEV)
-#include <stddef.h>
-#include <string.h>
-#else
-#error "Invalid platform"
-#endif
-
 enum icap_instance_type {
 	ICAP_APPLICATION_INSTANCE = 0,
 	ICAP_DEVICE_INSTANCE = 1,
 };
 
 int32_t icap_application_init(struct icap_instance *icap, struct icap_application_callbacks *cb, void *transport, void *priv) {
-	if ( (icap == NULL) || (cb == NULL) || (transport == NULL)) {
+	if ( (icap == NULL) || (cb == NULL)) {
 		return -ICAP_ERROR_INVALID;
 	}
-	if ( (icap->callbacks != NULL) || (icap->transport != NULL)){
+	if (icap->callbacks != NULL){
 		return -ICAP_ERROR_BUSY;
 	}
 	icap->type = ICAP_APPLICATION_INSTANCE;
-	icap->transport = transport;
 	icap->priv = priv;
 	icap->callbacks = cb;
 	icap->seq_num = 0;
-	return icap_init_transport(icap);
+	return icap_init_transport(icap, transport);
 }
 
 int32_t icap_application_deinit(struct icap_instance *icap) {
@@ -58,27 +44,25 @@ int32_t icap_application_deinit(struct icap_instance *icap) {
 		return ret;
 	}
 	icap->callbacks = NULL;
-	icap->transport = NULL;
 	return 0;
 }
 
 int32_t icap_device_init(struct icap_instance *icap, struct icap_device_callbacks *cb, void *transport, void *priv) {
-	if ( (icap == NULL) || (cb == NULL) || (transport == NULL)) {
+	if ( (icap == NULL) || (cb == NULL) ) {
 		return -ICAP_ERROR_INVALID;
 	}
 	icap->type = ICAP_DEVICE_INSTANCE;
-	icap->transport = transport;
 	icap->priv = priv;
 	icap->callbacks = cb;
 	icap->seq_num = 0;
-	return icap_init_transport(icap);
+	return icap_init_transport(icap, transport);
 }
 
 int32_t icap_device_deinit(struct icap_instance *icap) {
 	return icap_deinit_transport(icap);
 }
 
-int32_t icap_send_msg(struct icap_instance *icap, enum icap_msg_id id, void *data, uint32_t size, uint32_t sync, struct icap_msg *response)
+int32_t icap_send_msg(struct icap_instance *icap, enum icap_msg_cmd cmd, void *data, uint32_t size, uint32_t sync, struct icap_msg *response)
 {
 	struct icap_msg msg;
 	uint32_t seq_num;
@@ -103,7 +87,7 @@ int32_t icap_send_msg(struct icap_instance *icap, enum icap_msg_id id, void *dat
 	/* Initialize msg header */
 	msg.header.protocol_version = ICAP_PROTOCOL_VERSION;
 	msg.header.seq_num = seq_num;
-	msg.header.id = id;
+	msg.header.cmd = cmd;
 	msg.header.type = ICAP_MSG;
 	msg.header.flags = 0;
 	memset(&msg.header.reserved, 0, sizeof(msg.header.reserved));
@@ -127,7 +111,7 @@ int32_t icap_send_msg(struct icap_instance *icap, enum icap_msg_id id, void *dat
 	return icap_wait_for_response(icap, seq_num, response);
 }
 
-int32_t icap_send_response(struct icap_instance *icap, enum icap_msg_id id, enum icap_msg_type type, uint32_t seq_num, void *data, uint32_t size)
+int32_t icap_send_response(struct icap_instance *icap, enum icap_msg_cmd cmd, enum icap_msg_type type, uint32_t seq_num, void *data, uint32_t size)
 {
 	struct icap_msg msg;
 
@@ -144,7 +128,7 @@ int32_t icap_send_response(struct icap_instance *icap, enum icap_msg_id id, enum
 	/* Initialize msg header */
 	msg.header.protocol_version = ICAP_PROTOCOL_VERSION;
 	msg.header.seq_num = seq_num;
-	msg.header.id = id;
+	msg.header.cmd = cmd;
 	msg.header.type = type;
 	msg.header.flags = 0;
 	memset(&msg.header.reserved, 0, sizeof(msg.header.reserved));
@@ -155,15 +139,34 @@ int32_t icap_send_response(struct icap_instance *icap, enum icap_msg_id id, enum
 	return icap_send_platform(icap, &msg, size);
 }
 
-int32_t icap_send_ack(struct icap_instance *icap, enum icap_msg_id id, uint32_t seq_num, void *data, uint32_t size){
-	return icap_send_response(icap, id, ICAP_ACK, seq_num, data, size);
+int32_t icap_send_ack(struct icap_instance *icap, enum icap_msg_cmd cmd, uint32_t seq_num, void *data, uint32_t size){
+	return icap_send_response(icap, cmd, ICAP_ACK, seq_num, data, size);
 }
 
-int32_t icap_send_nak(struct icap_instance *icap, enum icap_msg_id id, uint32_t seq_num, int32_t error){
-	return icap_send_response(icap, id, ICAP_NAK, seq_num, &error, sizeof(error));
+int32_t icap_send_nak(struct icap_instance *icap, enum icap_msg_cmd cmd, uint32_t seq_num, int32_t error){
+	return icap_send_response(icap, cmd, ICAP_NAK, seq_num, &error, sizeof(error));
 }
 
-int32_t icap_get_device_features(struct icap_instance *icap, struct icap_device_features *features) {
+int32_t icap_get_device_num(struct icap_instance *icap, uint32_t *dev_num) {
+	struct icap_msg response;
+	int32_t ret;
+
+	if(dev_num == NULL){
+		return -ICAP_ERROR_INVALID;
+	}
+
+	ret = icap_send_msg(icap, ICAP_MSG_GET_DEV_NUM, NULL, 0, 1, &response);
+	if (ret) {
+		return ret;
+	}
+	if (response.header.payload_len != sizeof(uint32_t)){
+		return -ICAP_ERROR_MSG_LEN;
+	}
+	*dev_num = response.payload.u32;
+	return 0;
+}
+
+int32_t icap_get_device_features(struct icap_instance *icap, uint32_t dev_id, struct icap_device_features *features) {
 	struct icap_msg response;
 	int32_t ret;
 
@@ -171,7 +174,7 @@ int32_t icap_get_device_features(struct icap_instance *icap, struct icap_device_
 		return -ICAP_ERROR_INVALID;
 	}
 
-	ret = icap_send_msg(icap, ICAP_MSG_GET_DEV_FEATURES, NULL, 0, 1, &response);
+	ret = icap_send_msg(icap, ICAP_MSG_GET_DEV_FEATURES, &dev_id, sizeof(dev_id), 1, &response);
 	if (ret) {
 		return ret;
 	}
@@ -182,15 +185,18 @@ int32_t icap_get_device_features(struct icap_instance *icap, struct icap_device_
 	return 0;
 }
 
-int32_t icap_request_device_init(struct icap_instance *icap, uint32_t dev_id) {
-	return icap_send_msg(icap, ICAP_MSG_DEV_INIT, &dev_id, sizeof(dev_id), 1, NULL);
+int32_t icap_request_device_init(struct icap_instance *icap, struct icap_device_params *params) {
+	if(params == NULL){
+		return -ICAP_ERROR_INVALID;
+	}
+	return icap_send_msg(icap, ICAP_MSG_DEV_INIT, params, sizeof(struct icap_device_params), 1, NULL);
 }
 
 int32_t icap_request_device_deinit(struct icap_instance *icap, uint32_t dev_id) {
 	return icap_send_msg(icap, ICAP_MSG_DEV_DEINIT, &dev_id, sizeof(dev_id), 1, NULL);
 }
 
-int32_t icap_add_playback_src(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
+int32_t icap_add_src(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
 {
 	struct icap_msg response;
 	int32_t ret;
@@ -199,7 +205,7 @@ int32_t icap_add_playback_src(struct icap_instance *icap, struct icap_buf_descri
 		return -ICAP_ERROR_INVALID;
 	}
 
-	ret = icap_send_msg(icap, ICAP_MSG_PLAYBACK_ADD_SRC, buf, sizeof(struct icap_buf_descriptor), 1, &response);
+	ret = icap_send_msg(icap, ICAP_MSG_ADD_SRC, buf, sizeof(struct icap_buf_descriptor), 1, &response);
 	if (ret) {
 		return ret;
 	}
@@ -207,12 +213,12 @@ int32_t icap_add_playback_src(struct icap_instance *icap, struct icap_buf_descri
 	if (response.header.payload_len != sizeof(uint32_t)){
 		return -ICAP_ERROR_MSG_LEN;
 	}
-	*buf_id = response.payload.ui;
+	*buf_id = response.payload.u32;
 
 	return 0;
 }
 
-int32_t icap_add_playback_dst(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
+int32_t icap_add_dst(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
 {
 	struct icap_msg response;
 	int32_t ret;
@@ -221,7 +227,7 @@ int32_t icap_add_playback_dst(struct icap_instance *icap, struct icap_buf_descri
 		return -ICAP_ERROR_INVALID;
 	}
 
-	ret = icap_send_msg(icap, ICAP_MSG_PLAYBACK_ADD_DST, buf, sizeof(struct icap_buf_descriptor), 1, &response);
+	ret = icap_send_msg(icap, ICAP_MSG_ADD_DST, buf, sizeof(struct icap_buf_descriptor), 1, &response);
 	if (ret) {
 		return ret;
 	}
@@ -229,161 +235,63 @@ int32_t icap_add_playback_dst(struct icap_instance *icap, struct icap_buf_descri
 	if (response.header.payload_len != sizeof(uint32_t)){
 		return -ICAP_ERROR_MSG_LEN;
 	}
-	*buf_id = response.payload.ui;
+	*buf_id = response.payload.u32;
 
 	return 0;
 }
 
-int32_t icap_remove_playback_src(struct icap_instance *icap, uint32_t buf_id)
+int32_t icap_remove_src(struct icap_instance *icap, uint32_t buf_id)
 {
-	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_REMOVE_SRC, &buf_id, sizeof(buf_id), 1, NULL);
+	return icap_send_msg(icap, ICAP_MSG_REMOVE_SRC, &buf_id, sizeof(buf_id), 1, NULL);
 }
 
-int32_t icap_remove_playback_dst(struct icap_instance *icap, uint32_t buf_id)
+int32_t icap_remove_dst(struct icap_instance *icap, uint32_t buf_id)
 {
-	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_REMOVE_DST, &buf_id, sizeof(buf_id), 1, NULL);
+	return icap_send_msg(icap, ICAP_MSG_REMOVE_DST, &buf_id, sizeof(buf_id), 1, NULL);
 }
 
-int32_t icap_playback_start(struct icap_instance *icap)
+int32_t icap_start(struct icap_instance *icap, uint32_t dev_id)
 {
-	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_START, NULL, 0, 1, NULL);
+	return icap_send_msg(icap, ICAP_MSG_START, &dev_id, sizeof(dev_id), 1, NULL);
 }
 
-int32_t icap_playback_stop(struct icap_instance *icap)
+int32_t icap_stop(struct icap_instance *icap, uint32_t dev_id)
 {
-	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_STOP, NULL, 0, 1, NULL);
+	return icap_send_msg(icap, ICAP_MSG_STOP, &dev_id, sizeof(dev_id), 1, NULL);
 }
 
-int32_t icap_playback_pause(struct icap_instance *icap)
+int32_t icap_pause(struct icap_instance *icap, uint32_t dev_id)
 {
-	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_PAUSE, NULL, 0, 1, NULL);
+	return icap_send_msg(icap, ICAP_MSG_PAUSE, &dev_id, sizeof(dev_id), 1, NULL);
 }
 
-int32_t icap_playback_resume(struct icap_instance *icap)
+int32_t icap_resume(struct icap_instance *icap, uint32_t dev_id)
 {
-	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_RESUME, NULL, 0, 1, NULL);
+	return icap_send_msg(icap, ICAP_MSG_RESUME, &dev_id, sizeof(dev_id), 1, NULL);
 }
 
-int32_t icap_playback_frags(struct icap_instance *icap, struct icap_buf_offsets *offsets)
+int32_t icap_frags(struct icap_instance *icap, struct icap_buf_offsets *offsets)
 {
 	if (offsets == NULL) {
 		return -ICAP_ERROR_INVALID;
 	}
-	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_BUF_OFFSETS, offsets, sizeof(struct icap_buf_offsets), 1, NULL);
+	return icap_send_msg(icap, ICAP_MSG_BUF_OFFSETS, offsets, sizeof(struct icap_buf_offsets), 1, NULL);
 }
 
-int32_t icap_playback_frag_ready(struct icap_instance *icap, struct icap_buf_frags *frags)
+int32_t icap_frag_ready(struct icap_instance *icap, struct icap_buf_frags *frags)
 {
 	if (frags == NULL) {
 		return -ICAP_ERROR_INVALID;
 	}
-	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_FRAG_READY, frags, sizeof(struct icap_buf_frags), 0, NULL);
+	return icap_send_msg(icap, ICAP_MSG_FRAG_READY, frags, sizeof(struct icap_buf_frags), 0, NULL);
 }
 
-int32_t icap_playback_xrun(struct icap_instance *icap, struct icap_buf_frags *frags)
+int32_t icap_xrun(struct icap_instance *icap, struct icap_buf_frags *frags)
 {
 	if (frags == NULL) {
 		return -ICAP_ERROR_INVALID;
 	}
-	return icap_send_msg(icap, ICAP_MSG_PLAYBACK_XRUN, frags, sizeof(struct icap_buf_frags), 0, NULL);
-}
-
-int32_t icap_add_record_dst(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
-{
-	struct icap_msg response;
-	int32_t ret;
-
-	if ((buf == NULL) || (buf_id == NULL)) {
-		return -ICAP_ERROR_INVALID;
-	}
-
-	ret = icap_send_msg(icap, ICAP_MSG_RECORD_ADD_DST, buf, sizeof(struct icap_buf_descriptor), 1, &response);
-	if (ret) {
-		return ret;
-	}
-
-	if (response.header.payload_len != sizeof(uint32_t)){
-		return -ICAP_ERROR_MSG_LEN;
-	}
-	*buf_id = response.payload.ui;
-
-	return 0;
-}
-
-int32_t icap_add_record_src(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
-{
-	struct icap_msg response;
-	int32_t ret;
-
-	if ((buf == NULL) || (buf_id == NULL)) {
-		return -ICAP_ERROR_INVALID;
-	}
-
-	ret = icap_send_msg(icap, ICAP_MSG_RECORD_ADD_SRC, buf, sizeof(struct icap_buf_descriptor), 1, &response);
-	if (ret) {
-		return ret;
-	}
-
-	if (response.header.payload_len != sizeof(uint32_t)){
-		return -ICAP_ERROR_MSG_LEN;
-	}
-	*buf_id = response.payload.ui;
-
-	return 0;
-}
-
-int32_t icap_remove_record_dst(struct icap_instance *icap, uint32_t buf_id)
-{
-	return icap_send_msg(icap, ICAP_MSG_RECORD_REMOVE_DST, &buf_id, sizeof(buf_id), 1, NULL);
-}
-
-int32_t icap_remove_record_src(struct icap_instance *icap, uint32_t buf_id)
-{
-	return icap_send_msg(icap, ICAP_MSG_RECORD_REMOVE_SRC, &buf_id, sizeof(buf_id), 1, NULL);
-}
-
-int32_t icap_record_start(struct icap_instance *icap)
-{
-	return icap_send_msg(icap, ICAP_MSG_RECORD_START, NULL, 0, 1, NULL);
-}
-
-int32_t icap_record_stop(struct icap_instance *icap)
-{
-	return icap_send_msg(icap, ICAP_MSG_RECORD_STOP, NULL, 0, 1, NULL);
-}
-
-int32_t icap_record_pause(struct icap_instance *icap)
-{
-	return icap_send_msg(icap, ICAP_MSG_RECORD_PAUSE, NULL, 0, 1, NULL);
-}
-
-int32_t icap_record_resume(struct icap_instance *icap)
-{
-	return icap_send_msg(icap, ICAP_MSG_RECORD_RESUME, NULL, 0, 1, NULL);
-}
-
-int32_t icap_record_frags(struct icap_instance *icap, struct icap_buf_offsets *offsets)
-{
-	if (offsets == NULL) {
-		return -ICAP_ERROR_INVALID;
-	}
-	return icap_send_msg(icap, ICAP_MSG_RECORD_BUF_OFFSETS, offsets, sizeof(struct icap_buf_offsets), 1, NULL);
-}
-
-int32_t icap_record_frag_ready(struct icap_instance *icap, struct icap_buf_frags *frags)
-{
-	if (frags == NULL) {
-		return -ICAP_ERROR_INVALID;
-	}
-	return icap_send_msg(icap, ICAP_MSG_RECORD_FRAG_READY, frags, sizeof(struct icap_buf_frags), 0, NULL);
-}
-
-int32_t icap_record_xrun(struct icap_instance *icap, struct icap_buf_frags *frags)
-{
-	if (frags == NULL) {
-		return -ICAP_ERROR_INVALID;
-	}
-	return icap_send_msg(icap, ICAP_MSG_RECORD_XRUN, frags, sizeof(struct icap_buf_frags), 0, NULL);
+	return icap_send_msg(icap, ICAP_MSG_XRUN, frags, sizeof(struct icap_buf_frags), 0, NULL);
 }
 
 int32_t icap_error(struct icap_instance *icap, uint32_t error)
@@ -407,30 +315,20 @@ int32_t icap_application_parse_msg(struct icap_instance *icap, struct icap_msg *
 	int32_t send_generic_ack = 1;
 	int32_t ret = 0;
 
-	switch (msg_header->id) {
-	case ICAP_MSG_PLAYBACK_FRAG_READY:
-		if (cb->playback_frag_ready){
-			ret = cb->playback_frag_ready(icap, &msg->payload.frags);
+	switch (msg_header->cmd) {
+	case ICAP_MSG_FRAG_READY:
+		if (cb->frag_ready){
+			ret = cb->frag_ready(icap, &msg->payload.frags);
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_XRUN:
-		if (cb->playback_xrun){
-			ret = cb->playback_xrun(icap, &msg->payload.frags);
-		}
-		break;
-	case ICAP_MSG_RECORD_FRAG_READY:
-		if (cb->record_frag_ready){
-			ret = cb->record_frag_ready(icap, &msg->payload.frags);
-		}
-		break;
-	case ICAP_MSG_RECORD_XRUN:
-		if (cb->record_xrun){
-			ret = cb->record_xrun(icap, &msg->payload.frags);
+	case ICAP_MSG_XRUN:
+		if (cb->xrun){
+			ret = cb->xrun(icap, &msg->payload.frags);
 		}
 		break;
 	case ICAP_MSG_ERROR:
 		if (cb->error){
-			ret = cb->error(icap, msg->payload.i);
+			ret = cb->error(icap, msg->payload.s32);
 		}
 		break;
 	default:
@@ -440,9 +338,9 @@ int32_t icap_application_parse_msg(struct icap_instance *icap, struct icap_msg *
 
 	if (send_generic_ack) {
 		if (ret) {
-			icap_send_nak(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, ret);
+			icap_send_nak(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, ret);
 		} else {
-			icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, NULL, 0);
+			icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, NULL, 0);
 		}
 	}
 
@@ -462,35 +360,25 @@ int32_t icap_device_parse_response(struct icap_instance *icap, struct icap_msg *
 	 */
 
 	if(msg_header->type == ICAP_NAK) {
-		error = msg->payload.i;
+		error = msg->payload.s32;
 	} else {
 		error = 0;
 	}
 
-	switch (msg_header->id) {
-	case ICAP_MSG_PLAYBACK_FRAG_READY:
-		if (cb->playback_frag_ready_response){
-			ret = cb->playback_frag_ready_response(icap, error);
+	switch (msg_header->cmd) {
+	case ICAP_MSG_FRAG_READY:
+		if (cb->frag_ready_response){
+			ret = cb->frag_ready_response(icap, error);
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_XRUN:
-		if (cb->playback_xrun_response){
-			ret = cb->playback_xrun_response(icap, error);
-		}
-		break;
-	case ICAP_MSG_RECORD_FRAG_READY:
-		if (cb->record_frag_ready_response){
-			ret = cb->record_frag_ready_response(icap, error);
-		}
-		break;
-	case ICAP_MSG_RECORD_XRUN:
-		if (cb->record_xrun_response){
-			ret = cb->record_xrun_response(icap, error);
+	case ICAP_MSG_XRUN:
+		if (cb->xrun_response){
+			ret = cb->xrun_response(icap, error);
 		}
 		break;
 	case ICAP_MSG_ERROR:
-		if (cb->playback_error_response){
-			ret = cb->playback_error_response(icap, error);
+		if (cb->error_response){
+			ret = cb->error_response(icap, error);
 		}
 		break;
 	default:
@@ -507,136 +395,91 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 	int32_t send_generic_ack = 1;
 	int32_t ret = 0;
 	uint32_t buf_id;
+	uint32_t dev_num;
 	struct icap_device_features features;
 
-	switch (msg_header->id) {
+	switch (msg_header->cmd) {
+	case ICAP_MSG_GET_DEV_NUM:
+		if (cb->get_device_num){
+			ret = cb->get_device_num(icap, &dev_num);
+			if (ret >= 0) {
+				icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, &dev_num, sizeof(dev_num));
+				send_generic_ack = 0;
+			}
+		}
+		break;
 	case ICAP_MSG_GET_DEV_FEATURES:
 		if (cb->get_device_features){
 			ret = cb->get_device_features(icap, &features);
 			if (ret >= 0) {
-				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &features, sizeof(struct icap_device_features));
+				icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, &features, sizeof(struct icap_device_features));
 				send_generic_ack = 0;
 			}
 		}
 		break;
 	case ICAP_MSG_DEV_INIT:
 		if (cb->device_init){
-			ret = cb->device_init(icap, msg->payload.ui);
+			ret = cb->device_init(icap, &msg->payload.dev_params);
 		}
 		break;
 	case ICAP_MSG_DEV_DEINIT:
 		if (cb->device_deinit){
-			ret = cb->device_deinit(icap, msg->payload.ui);
+			ret = cb->device_deinit(icap, msg->payload.u32);
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_ADD_SRC:
-		if (cb->add_playback_src){
-			ret = cb->add_playback_src(icap, &msg->payload.buf);
+	case ICAP_MSG_ADD_SRC:
+		if (cb->add_src){
+			ret = cb->add_src(icap, &msg->payload.buf);
 			if (ret >= 0) {
 				buf_id = ret;
-				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &buf_id, sizeof(buf_id));
+				icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, &buf_id, sizeof(buf_id));
 				send_generic_ack = 0;
 			}
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_ADD_DST:
-		if (cb->add_playback_dst){
-			ret = cb->add_playback_dst(icap, &msg->payload.buf);
+	case ICAP_MSG_ADD_DST:
+		if (cb->add_dst){
+			ret = cb->add_dst(icap, &msg->payload.buf);
 			if (ret >= 0) {
 				buf_id = ret;
-				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &buf_id, sizeof(buf_id));
+				icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, &buf_id, sizeof(buf_id));
 				send_generic_ack = 0;
 			}
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_REMOVE_SRC:
-		if (cb->remove_playback_src){
-			ret = cb->remove_playback_src(icap, msg->payload.ui);
+	case ICAP_MSG_REMOVE_SRC:
+		if (cb->remove_src){
+			ret = cb->remove_src(icap, msg->payload.u32);
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_REMOVE_DST:
-		if (cb->remove_playback_dst){
-			ret = cb->remove_playback_dst(icap, msg->payload.ui);
+	case ICAP_MSG_REMOVE_DST:
+		if (cb->remove_dst){
+			ret = cb->remove_dst(icap, msg->payload.u32);
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_START:
-		if (cb->playback_start){
-			ret = cb->playback_start(icap);
+	case ICAP_MSG_START:
+		if (cb->start){
+			ret = cb->start(icap, msg->payload.u32);
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_STOP:
-		if (cb->playback_stop){
-			ret = cb->playback_stop(icap);
+	case ICAP_MSG_STOP:
+		if (cb->stop){
+			ret = cb->stop(icap, msg->payload.u32);
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_PAUSE:
-		if (cb->playback_pause){
-			ret = cb->playback_pause(icap);
+	case ICAP_MSG_PAUSE:
+		if (cb->pause){
+			ret = cb->pause(icap, msg->payload.u32);
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_RESUME:
-		if (cb->playback_resume){
-			ret = cb->playback_resume(icap);
+	case ICAP_MSG_RESUME:
+		if (cb->resume){
+			ret = cb->resume(icap, msg->payload.u32);
 		}
 		break;
-	case ICAP_MSG_PLAYBACK_BUF_OFFSETS:
-		if (cb->playback_frags){
-			ret = cb->playback_frags(icap, &msg->payload.offsets);
-		}
-		break;
-	case ICAP_MSG_RECORD_ADD_DST:
-		if (cb->add_record_dst){
-			ret = cb->add_record_dst(icap, &msg->payload.buf);
-			if (ret >= 0) {
-				buf_id = ret;
-				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &buf_id, sizeof(buf_id));
-				send_generic_ack = 0;
-			}
-		}
-		break;
-	case ICAP_MSG_RECORD_ADD_SRC:
-		if (cb->add_record_src){
-			ret = cb->add_record_src(icap, &msg->payload.buf);
-			if (ret >= 0) {
-				buf_id = ret;
-				icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, &buf_id, sizeof(buf_id));
-				send_generic_ack = 0;
-			}
-		}
-		break;
-	case ICAP_MSG_RECORD_REMOVE_DST:
-		if (cb->remove_record_dst){
-			ret = cb->remove_record_dst(icap, msg->payload.ui);
-		}
-		break;
-	case ICAP_MSG_RECORD_REMOVE_SRC:
-		if (cb->remove_record_src){
-			ret = cb->remove_record_src(icap, msg->payload.ui);
-		}
-		break;
-	case ICAP_MSG_RECORD_START:
-		if (cb->record_start){
-			ret = cb->record_start(icap);
-		}
-		break;
-	case ICAP_MSG_RECORD_STOP:
-		if (cb->record_stop){
-			ret = cb->record_stop(icap);
-		}
-		break;
-	case ICAP_MSG_RECORD_PAUSE:
-		if (cb->record_pause){
-			ret = cb->record_pause(icap);
-		}
-		break;
-	case ICAP_MSG_RECORD_RESUME:
-		if (cb->record_resume){
-			ret = cb->record_resume(icap);
-		}
-		break;
-	case ICAP_MSG_RECORD_BUF_OFFSETS:
-		if (cb->record_frags){
-			ret = cb->record_frags(icap, &msg->payload.offsets);
+	case ICAP_MSG_BUF_OFFSETS:
+		if (cb->frags){
+			ret = cb->frags(icap, &msg->payload.offsets);
 		}
 		break;
 	default:
@@ -646,9 +489,9 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 
 	if (send_generic_ack) {
 		if (ret) {
-			icap_send_nak(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, ret);
+			icap_send_nak(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, ret);
 		} else {
-			icap_send_ack(icap, (enum icap_msg_id)msg_header->id, msg_header->seq_num, NULL, 0);
+			icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, NULL, 0);
 		}
 	}
 	return 0;
