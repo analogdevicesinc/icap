@@ -20,8 +20,8 @@
 #include "icap.h"
 
 struct icap_device_callbacks {
-	int32_t (*get_device_num)(struct icap_instance *icap, uint32_t *dev_num);
-	int32_t (*get_device_features)(struct icap_instance *icap, struct icap_device_features *features);
+	int32_t (*get_device_num)(struct icap_instance *icap);
+	int32_t (*get_device_features)(struct icap_instance *icap, uint32_t dev_id, struct icap_device_features *features);
 	int32_t (*device_init)(struct icap_instance *icap, struct icap_device_params *params);
 	int32_t (*device_deinit)(struct icap_instance *icap, uint32_t dev_id);
 
@@ -34,13 +34,13 @@ struct icap_device_callbacks {
 	int32_t (*pause)(struct icap_instance *icap, uint32_t dev_id);
 	int32_t (*resume)(struct icap_instance *icap, uint32_t dev_id);
 	int32_t (*frags)(struct icap_instance *icap, struct icap_buf_offsets *offsets);
-	int32_t (*frag_ready_response)(struct icap_instance *icap, int32_t error);
-	int32_t (*xrun_response)(struct icap_instance *icap, int32_t error);
+	int32_t (*frag_ready_response)(struct icap_instance *icap, int32_t buf_id);
+	int32_t (*xrun_response)(struct icap_instance *icap, int32_t buf_id);
 
 	int32_t (*error_response)(struct icap_instance *icap, int32_t error);
 };
 
-int32_t icap_device_init(struct icap_instance *icap, struct icap_device_callbacks *cb, void *transport, void *priv);
+int32_t icap_device_init(struct icap_instance *icap, char* name, struct icap_device_callbacks *cb, void *transport, void *priv);
 int32_t icap_device_deinit(struct icap_instance *icap);
 
 int32_t icap_frag_ready(struct icap_instance *icap, struct icap_buf_frags *frags);

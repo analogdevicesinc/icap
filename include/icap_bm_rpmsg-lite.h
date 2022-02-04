@@ -20,4 +20,8 @@
 #include <string.h>
 #include <rpmsg_lite.h>
 
+struct icap_transport {
+	struct icap_rpmsg_lite_ep_info *ept_info;
+};
+
 #endif /* _ICAP_BM_RPMSG_LITE_H_ */

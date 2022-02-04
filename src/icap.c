@@ -23,13 +23,14 @@ enum icap_instance_type {
 	ICAP_DEVICE_INSTANCE = 1,
 };
 
-int32_t icap_application_init(struct icap_instance *icap, struct icap_application_callbacks *cb, void *transport, void *priv) {
+int32_t icap_application_init(struct icap_instance *icap, char* name, struct icap_application_callbacks *cb, void *transport, void *priv) {
 	if ( (icap == NULL) || (cb == NULL)) {
 		return -ICAP_ERROR_INVALID;
 	}
 	if (icap->callbacks != NULL){
 		return -ICAP_ERROR_BUSY;
 	}
+	icap->name = name;
 	icap->type = ICAP_APPLICATION_INSTANCE;
 	icap->priv = priv;
 	icap->callbacks = cb;
@@ -47,10 +48,11 @@ int32_t icap_application_deinit(struct icap_instance *icap) {
 	return 0;
 }
 
-int32_t icap_device_init(struct icap_instance *icap, struct icap_device_callbacks *cb, void *transport, void *priv) {
+int32_t icap_device_init(struct icap_instance *icap, char* name, struct icap_device_callbacks *cb, void *transport, void *priv) {
 	if ( (icap == NULL) || (cb == NULL) ) {
 		return -ICAP_ERROR_INVALID;
 	}
+	icap->name = name;
 	icap->type = ICAP_DEVICE_INSTANCE;
 	icap->priv = priv;
 	icap->callbacks = cb;
@@ -313,17 +315,36 @@ int32_t icap_application_parse_msg(struct icap_instance *icap, struct icap_msg *
 	struct icap_application_callbacks *cb = (struct icap_application_callbacks *)icap->callbacks;
 	struct icap_msg_header *msg_header = &msg->header;
 	int32_t send_generic_ack = 1;
+	uint32_t buf_id;
 	int32_t ret = 0;
 
 	switch (msg_header->cmd) {
 	case ICAP_MSG_FRAG_READY:
 		if (cb->frag_ready){
+			buf_id = msg->payload.frags.buf_id;
 			ret = cb->frag_ready(icap, &msg->payload.frags);
+			if (ret == 0) {
+				icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, &buf_id, sizeof(buf_id));
+				send_generic_ack = 0;
+			}
+		} else {
+			buf_id = msg->payload.frags.buf_id;
+			icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, &buf_id, sizeof(buf_id));
+			send_generic_ack = 0;
 		}
 		break;
 	case ICAP_MSG_XRUN:
 		if (cb->xrun){
+			buf_id = msg->payload.frags.buf_id;
 			ret = cb->xrun(icap, &msg->payload.frags);
+			if (ret == 0) {
+				icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, &buf_id, sizeof(buf_id));
+				send_generic_ack = 0;
+			}
+		} else {
+			buf_id = msg->payload.frags.buf_id;
+			icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, &buf_id, sizeof(buf_id));
+			send_generic_ack = 0;
 		}
 		break;
 	case ICAP_MSG_ERROR:
@@ -368,11 +389,17 @@ int32_t icap_device_parse_response(struct icap_instance *icap, struct icap_msg *
 	switch (msg_header->cmd) {
 	case ICAP_MSG_FRAG_READY:
 		if (cb->frag_ready_response){
+			if(msg_header->type == ICAP_ACK) {
+				error = msg->payload.s32;
+			}
 			ret = cb->frag_ready_response(icap, error);
 		}
 		break;
 	case ICAP_MSG_XRUN:
 		if (cb->xrun_response){
+			if(msg_header->type == ICAP_ACK) {
+				error = msg->payload.s32;
+			}
 			ret = cb->xrun_response(icap, error);
 		}
 		break;
@@ -401,8 +428,9 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 	switch (msg_header->cmd) {
 	case ICAP_MSG_GET_DEV_NUM:
 		if (cb->get_device_num){
-			ret = cb->get_device_num(icap, &dev_num);
+			ret = cb->get_device_num(icap);
 			if (ret >= 0) {
+				dev_num = ret;
 				icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, &dev_num, sizeof(dev_num));
 				send_generic_ack = 0;
 			}
@@ -410,7 +438,7 @@ int32_t icap_device_parse_msg(struct icap_instance *icap, struct icap_msg *msg)
 		break;
 	case ICAP_MSG_GET_DEV_FEATURES:
 		if (cb->get_device_features){
-			ret = cb->get_device_features(icap, &features);
+			ret = cb->get_device_features(icap, msg->payload.u32, &features);
 			if (ret >= 0) {
 				icap_send_ack(icap, (enum icap_msg_cmd)msg_header->cmd, msg_header->seq_num, &features, sizeof(struct icap_device_features));
 				send_generic_ack = 0;

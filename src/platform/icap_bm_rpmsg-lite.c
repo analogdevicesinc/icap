@@ -25,9 +25,10 @@ struct _icap_msg_fifo {
 static struct _icap_msg_fifo icap_response_fifo[ICAP_MAX_ICAP_INSTANCES] = {{0}};
 
 
-int32_t icap_init_transport(struct icap_instance *icap)
+int32_t icap_init_transport(struct icap_instance *icap, void *transport)
 {
-	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
+	icap->transport.ept_info = transport;
+	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	int i;
 
 	/* Find first available fifo */
@@ -52,14 +53,14 @@ int32_t icap_init_transport(struct icap_instance *icap)
 
 int32_t icap_deinit_transport(struct icap_instance *icap)
 {
-	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
+	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
 	fifo->in_use = 0;
 	return 0;
 }
 
 int32_t icap_verify_remote(struct icap_instance *icap, union icap_remote_addr *src_addr){
-	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
+	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 
 	/*ICAP is one-to-one communication, talk only to the first end point*/
 	if(ept_info->remote_addr == (uint32_t)-1) {
@@ -73,14 +74,14 @@ int32_t icap_verify_remote(struct icap_instance *icap, union icap_remote_addr *s
 
 int32_t icap_send_platform(struct icap_instance *icap, void *data, uint32_t size)
 {
-	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
+	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	return rpmsg_lite_send(
 			ept_info->rpmsg_instance, ept_info->rpmsg_ept, ept_info->remote_addr,
 			data, size, 0);
 }
 
 int32_t icap_put_msg(struct icap_instance *icap, union icap_remote_addr *src_addr, void *data, uint32_t size) {
-	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
+	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
 
 	atomic_t head_next = fifo->head + 1;
@@ -102,7 +103,7 @@ int32_t icap_put_msg(struct icap_instance *icap, union icap_remote_addr *src_add
 }
 
 int32_t icap_loop(struct icap_instance *icap) {
-	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
+	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
 	struct _icap_remote_msg *remote_msg;
 	atomic_t tail_next;
@@ -133,7 +134,7 @@ int32_t icap_prepare_wait(struct icap_instance *icap, struct icap_msg *msg)
 
 int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *response)
 {
-	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
+	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
 	uint32_t size = sizeof(struct icap_msg_header) + response->header.payload_len;
 	memcpy(&fifo->last_response, response, size);
@@ -142,7 +143,7 @@ int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *respon
 
 int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
 {
-	struct icap_rpmsg_lite_ep_info *ept_info = (struct icap_rpmsg_lite_ep_info *)icap->transport;
+	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
     uint32_t start, elapsed, size;
     start = platform_us_clock_tick();
@@ -159,7 +160,7 @@ int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, str
     		/* Got proper response */
 
     		if (fifo->last_response.header.type == ICAP_NAK){
-    			return fifo->last_response.payload.i;
+    			return fifo->last_response.payload.s32;
     		} else {
     			if (response) {
     				size = sizeof(struct icap_msg_header) + fifo->last_response.header.payload_len;

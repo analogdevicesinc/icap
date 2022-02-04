@@ -26,7 +26,7 @@
 
 #if defined(ICAP_BM_RPMSG_LITE)
 /* For static allocation of message queues */
-#define ICAP_MAX_ICAP_INSTANCES 2
+#define ICAP_MAX_ICAP_INSTANCES 3
 #define ICAP_MSG_QUEUE_SIZE 10
 #endif
 

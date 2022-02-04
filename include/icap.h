@@ -127,6 +127,7 @@ enum icap_buf_type {
 };
 
 struct icap_instance {
+	char *name;
 	uint32_t type;
 	struct icap_transport transport;
 	void *priv;
