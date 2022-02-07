@@ -28,19 +28,19 @@ struct icap_application_callbacks {
 int32_t icap_application_init(struct icap_instance *icap, char* name, struct icap_application_callbacks *cb, void *transport, void *priv);
 int32_t icap_application_deinit(struct icap_instance *icap);
 
-int32_t icap_get_device_num(struct icap_instance *icap);
-int32_t icap_get_device_features(struct icap_instance *icap, uint32_t dev_id, struct icap_device_features *features);
-int32_t icap_request_device_init(struct icap_instance *icap, struct icap_device_params *params);
-int32_t icap_request_device_deinit(struct icap_instance *icap, uint32_t dev_id);
+int32_t icap_get_subdevices(struct icap_instance *icap);
+int32_t icap_get_subdevice_features(struct icap_instance *icap, uint32_t subdev_id, struct icap_subdevice_features *features);
+int32_t icap_subdevice_init(struct icap_instance *icap, struct icap_subdevice_params *params);
+int32_t icap_subdevice_deinit(struct icap_instance *icap, uint32_t subdev_id);
 
 int32_t icap_add_src(struct icap_instance *icap, struct icap_buf_descriptor *buf);
 int32_t icap_add_dst(struct icap_instance *icap, struct icap_buf_descriptor *buf);
 int32_t icap_remove_src(struct icap_instance *icap, uint32_t buf_id);
 int32_t icap_remove_dst(struct icap_instance *icap, uint32_t buf_id);
-int32_t icap_start(struct icap_instance *icap, uint32_t dev_id);
-int32_t icap_stop(struct icap_instance *icap, uint32_t dev_id);
-int32_t icap_pause(struct icap_instance *icap, uint32_t dev_id);
-int32_t icap_resume(struct icap_instance *icap, uint32_t dev_id);
+int32_t icap_start(struct icap_instance *icap, uint32_t subdev_id);
+int32_t icap_stop(struct icap_instance *icap, uint32_t subdev_id);
+int32_t icap_pause(struct icap_instance *icap, uint32_t subdev_id);
+int32_t icap_resume(struct icap_instance *icap, uint32_t subdev_id);
 int32_t icap_frags(struct icap_instance *icap, struct icap_buf_offsets *offsets);
 
 #endif /* _ICAP_APPLICATION_H_ */

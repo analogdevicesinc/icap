@@ -138,7 +138,7 @@ struct icap_instance {
 ICAP_PACKED_BEGIN
 struct icap_buf_descriptor {
 	char name[ICAP_BUF_NAME_LEN];
-	int32_t dev_id;
+	int32_t subdev_id;
 	uint64_t buf;
 	uint32_t buf_size;
 	uint32_t type;
@@ -164,7 +164,7 @@ struct icap_buf_offsets {
 }ICAP_PACKED_END;
 
 ICAP_PACKED_BEGIN
-struct icap_device_features {
+struct icap_subdevice_features {
 	uint32_t type;
 	uint32_t src_buf_max;
 	uint32_t dst_buf_max;
@@ -174,8 +174,8 @@ struct icap_device_features {
 	uint32_t rates;
 }ICAP_PACKED_END;
 
-struct icap_device_params {
-	uint32_t dev_id;
+struct icap_subdevice_params {
+	uint32_t subdev_id;
 	uint32_t channels;
 	uint32_t format;
 	uint32_t rate;

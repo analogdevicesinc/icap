@@ -59,7 +59,9 @@ int32_t icap_deinit_transport(struct icap_instance *icap)
 	return 0;
 }
 
-int32_t icap_verify_remote(struct icap_instance *icap, union icap_remote_addr *src_addr){
+int32_t icap_verify_remote(struct icap_instance *icap,
+		union icap_remote_addr *src_addr)
+{
 	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 
 	/*ICAP is one-to-one communication, talk only to the first end point*/
@@ -80,7 +82,9 @@ int32_t icap_send_platform(struct icap_instance *icap, void *data, uint32_t size
 			data, size, 0);
 }
 
-int32_t icap_put_msg(struct icap_instance *icap, union icap_remote_addr *src_addr, void *data, uint32_t size) {
+int32_t icap_put_msg(struct icap_instance *icap, union icap_remote_addr *src_addr,
+		void *data, uint32_t size)
+{
 	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
 
@@ -102,7 +106,8 @@ int32_t icap_put_msg(struct icap_instance *icap, union icap_remote_addr *src_add
 	return RL_HOLD;
 }
 
-int32_t icap_loop(struct icap_instance *icap) {
+int32_t icap_loop(struct icap_instance *icap)
+{
 	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
 	struct _icap_remote_msg *remote_msg;
@@ -141,7 +146,8 @@ int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *respon
 	return 0;
 }
 
-int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
+int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num,
+		struct icap_msg *response)
 {
 	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;

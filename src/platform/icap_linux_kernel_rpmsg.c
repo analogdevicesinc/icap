@@ -84,7 +84,8 @@ int32_t icap_deinit_transport(struct icap_instance *icap)
 	return 0;
 }
 
-int32_t icap_verify_remote(struct icap_instance *icap, union icap_remote_addr *src_addr)
+int32_t icap_verify_remote(struct icap_instance *icap,
+		union icap_remote_addr *src_addr)
 {
 	/* rpmsg endpoints on linux are one to one - no need to verify src address*/
 	return 0;
@@ -110,6 +111,7 @@ struct _icap_wait_hint {
 	uint32_t msg_cmd;
 };
 
+static
 struct sk_buff *_find_seq_num(struct sk_buff_head *queue, uint32_t seq_num)
 {
 	struct _icap_wait_hint *hint;
@@ -198,7 +200,8 @@ int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *respon
 	return ret;
 }
 
-int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response)
+int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num,
+		struct icap_msg *response)
 {
 	struct rpmsg_device *rpdev = icap->transport.rpdev;
 	struct rpmsg_endpoint *ept = rpdev->ept;
@@ -268,14 +271,16 @@ int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, str
 	return ret;
 }
 
-void icap_platform_lock(struct icap_instance *icap) {
+void icap_platform_lock(struct icap_instance *icap)
+{
 	struct rpmsg_device *rpdev = icap->transport.rpdev;
 	struct rpmsg_endpoint *ept = rpdev->ept;
 	struct icap_linux_kernel_rpmsg *icap_rpmsg_priv = (struct icap_linux_kernel_rpmsg *)ept->priv;
 	mutex_lock(&icap_rpmsg_priv->platform_lock);
 }
 
-void icap_platform_unlock(struct icap_instance *icap){
+void icap_platform_unlock(struct icap_instance *icap)
+{
 	struct rpmsg_device *rpdev = icap->transport.rpdev;
 	struct rpmsg_endpoint *ept = rpdev->ept;
 	struct icap_linux_kernel_rpmsg *icap_rpmsg_priv = (struct icap_linux_kernel_rpmsg *)ept->priv;

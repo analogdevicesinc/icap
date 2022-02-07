@@ -20,19 +20,19 @@
 #include "icap.h"
 
 struct icap_device_callbacks {
-	int32_t (*get_device_num)(struct icap_instance *icap);
-	int32_t (*get_device_features)(struct icap_instance *icap, uint32_t dev_id, struct icap_device_features *features);
-	int32_t (*device_init)(struct icap_instance *icap, struct icap_device_params *params);
-	int32_t (*device_deinit)(struct icap_instance *icap, uint32_t dev_id);
+	int32_t (*get_subdevices)(struct icap_instance *icap);
+	int32_t (*get_subdevice_features)(struct icap_instance *icap, uint32_t subdev_id, struct icap_subdevice_features *features);
+	int32_t (*subdevice_init)(struct icap_instance *icap, struct icap_subdevice_params *params);
+	int32_t (*subdevice_deinit)(struct icap_instance *icap, uint32_t subdev_id);
 
 	int32_t (*add_src)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
 	int32_t (*add_dst)(struct icap_instance *icap, struct icap_buf_descriptor *buf);
 	int32_t (*remove_src)(struct icap_instance *icap, uint32_t buf_id);
 	int32_t (*remove_dst)(struct icap_instance *icap, uint32_t buf_id);
-	int32_t (*start)(struct icap_instance *icap, uint32_t dev_id);
-	int32_t (*stop)(struct icap_instance *icap, uint32_t dev_id);
-	int32_t (*pause)(struct icap_instance *icap, uint32_t dev_id);
-	int32_t (*resume)(struct icap_instance *icap, uint32_t dev_id);
+	int32_t (*start)(struct icap_instance *icap, uint32_t subdev_id);
+	int32_t (*stop)(struct icap_instance *icap, uint32_t subdev_id);
+	int32_t (*pause)(struct icap_instance *icap, uint32_t subdev_id);
+	int32_t (*resume)(struct icap_instance *icap, uint32_t subdev_id);
 	int32_t (*frags)(struct icap_instance *icap, struct icap_buf_offsets *offsets);
 	int32_t (*frag_ready_response)(struct icap_instance *icap, int32_t buf_id);
 	int32_t (*xrun_response)(struct icap_instance *icap, int32_t buf_id);

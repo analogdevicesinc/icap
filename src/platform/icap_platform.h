@@ -44,8 +44,8 @@ union icap_msg_payload {
 	struct icap_buf_descriptor buf;
 	struct icap_buf_frags frags;
 	struct icap_buf_offsets offsets;
-	struct icap_device_features features;
-	struct icap_device_params dev_params;
+	struct icap_subdevice_features features;
+	struct icap_subdevice_params dev_params;
 }ICAP_PACKED_END;
 
 ICAP_PACKED_BEGIN
