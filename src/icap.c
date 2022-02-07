@@ -149,13 +149,9 @@ int32_t icap_send_nak(struct icap_instance *icap, enum icap_msg_cmd cmd, uint32_
 	return icap_send_response(icap, cmd, ICAP_NAK, seq_num, &error, sizeof(error));
 }
 
-int32_t icap_get_device_num(struct icap_instance *icap, uint32_t *dev_num) {
+int32_t icap_get_device_num(struct icap_instance *icap) {
 	struct icap_msg response;
 	int32_t ret;
-
-	if(dev_num == NULL){
-		return -ICAP_ERROR_INVALID;
-	}
 
 	ret = icap_send_msg(icap, ICAP_MSG_GET_DEV_NUM, NULL, 0, 1, &response);
 	if (ret) {
@@ -164,8 +160,7 @@ int32_t icap_get_device_num(struct icap_instance *icap, uint32_t *dev_num) {
 	if (response.header.payload_len != sizeof(uint32_t)){
 		return -ICAP_ERROR_MSG_LEN;
 	}
-	*dev_num = response.payload.u32;
-	return 0;
+	return response.payload.s32;
 }
 
 int32_t icap_get_device_features(struct icap_instance *icap, uint32_t dev_id, struct icap_device_features *features) {
@@ -198,12 +193,12 @@ int32_t icap_request_device_deinit(struct icap_instance *icap, uint32_t dev_id) 
 	return icap_send_msg(icap, ICAP_MSG_DEV_DEINIT, &dev_id, sizeof(dev_id), 1, NULL);
 }
 
-int32_t icap_add_src(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
+int32_t icap_add_src(struct icap_instance *icap, struct icap_buf_descriptor *buf)
 {
 	struct icap_msg response;
 	int32_t ret;
 
-	if ((buf == NULL) || (buf_id == NULL)) {
+	if (buf == NULL) {
 		return -ICAP_ERROR_INVALID;
 	}
 
@@ -215,17 +210,15 @@ int32_t icap_add_src(struct icap_instance *icap, struct icap_buf_descriptor *buf
 	if (response.header.payload_len != sizeof(uint32_t)){
 		return -ICAP_ERROR_MSG_LEN;
 	}
-	*buf_id = response.payload.u32;
-
-	return 0;
+	return response.payload.s32;
 }
 
-int32_t icap_add_dst(struct icap_instance *icap, struct icap_buf_descriptor *buf, uint32_t *buf_id)
+int32_t icap_add_dst(struct icap_instance *icap, struct icap_buf_descriptor *buf)
 {
 	struct icap_msg response;
 	int32_t ret;
 
-	if ((buf == NULL) || (buf_id == NULL)) {
+	if (buf == NULL) {
 		return -ICAP_ERROR_INVALID;
 	}
 
@@ -237,9 +230,7 @@ int32_t icap_add_dst(struct icap_instance *icap, struct icap_buf_descriptor *buf
 	if (response.header.payload_len != sizeof(uint32_t)){
 		return -ICAP_ERROR_MSG_LEN;
 	}
-	*buf_id = response.payload.u32;
-
-	return 0;
+	return response.payload.s32;
 }
 
 int32_t icap_remove_src(struct icap_instance *icap, uint32_t buf_id)
