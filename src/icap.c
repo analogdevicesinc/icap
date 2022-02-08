@@ -42,13 +42,11 @@ int32_t icap_application_init(struct icap_instance *icap, char* name,
 
 int32_t icap_application_deinit(struct icap_instance *icap)
 {
-	int32_t ret;
-	ret = icap_deinit_transport(icap);
-	if (ret) {
-		return ret;
+	if (icap->callbacks == NULL) {
+		return 0;
 	}
 	icap->callbacks = NULL;
-	return 0;
+	return icap_deinit_transport(icap);
 }
 
 int32_t icap_device_init(struct icap_instance *icap, char* name,
@@ -67,6 +65,10 @@ int32_t icap_device_init(struct icap_instance *icap, char* name,
 
 int32_t icap_device_deinit(struct icap_instance *icap)
 {
+	if (icap->callbacks == NULL) {
+		return 0;
+	}
+	icap->callbacks = NULL;
 	return icap_deinit_transport(icap);
 }
 
@@ -551,6 +553,10 @@ int32_t icap_parse_msg(struct icap_instance *icap,
 	struct icap_msg *msg = (struct icap_msg *)data;
 	struct icap_msg_header *msg_header = &msg->header;
 	int32_t ret;
+
+	if ( icap->callbacks == NULL ) {
+		return -ICAP_ERROR_INIT;
+	}
 
 	if (msg_header->protocol_version != ICAP_PROTOCOL_VERSION) {
 		return -ICAP_ERROR_PROTOCOL_NOT_SUP;

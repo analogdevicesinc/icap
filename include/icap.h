@@ -31,6 +31,7 @@
 #endif
 
 /* Error codes */
+#define ICAP_ERROR_INIT 6
 #define ICAP_ERROR_NOMEM 12
 #define ICAP_ERROR_BUSY 16
 #define ICAP_ERROR_INVALID 22

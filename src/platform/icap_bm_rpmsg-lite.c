@@ -85,6 +85,10 @@ int32_t icap_send_platform(struct icap_instance *icap, void *data, uint32_t size
 int32_t icap_put_msg(struct icap_instance *icap, union icap_remote_addr *src_addr,
 		void *data, uint32_t size)
 {
+	if ( icap->callbacks == NULL ) {
+		return -ICAP_ERROR_INIT;
+	}
+
 	struct icap_rpmsg_lite_ep_info *ept_info = icap->transport.ept_info;
 	struct _icap_msg_fifo *fifo = (struct _icap_msg_fifo*)ept_info->priv;
 
