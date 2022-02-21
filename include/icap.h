@@ -187,15 +187,6 @@ union icap_remote_addr {
 	void *tcpip_addr;
 };
 
-#if defined(ICAP_BM_RPMSG_LITE)
-struct icap_rpmsg_lite_ep_info{
-	struct rpmsg_lite_instance *rpmsg_instance;
-	struct rpmsg_lite_endpoint *rpmsg_ept;
-	uint32_t remote_addr;
-	void *priv;
-};
-#endif
-
 /* For contexts which can process messages */
 int32_t icap_parse_msg(struct icap_instance *icap, union icap_remote_addr *src_addr, void *data, uint32_t size);
 

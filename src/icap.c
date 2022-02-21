@@ -24,7 +24,7 @@ enum icap_instance_type {
 };
 
 int32_t icap_application_init(struct icap_instance *icap, char* name,
-		struct icap_application_callbacks *cb, void *transport, void *priv)
+		struct icap_application_callbacks *cb, struct icap_transport *transport, void *priv)
 {
 	if ( (icap == NULL) || (cb == NULL)) {
 		return -ICAP_ERROR_INVALID;
@@ -50,7 +50,7 @@ int32_t icap_application_deinit(struct icap_instance *icap)
 }
 
 int32_t icap_device_init(struct icap_instance *icap, char* name,
-		struct icap_device_callbacks *cb, void *transport, void *priv)
+		struct icap_device_callbacks *cb, struct icap_transport *transport, void *priv)
 {
 	if ( (icap == NULL) || (cb == NULL) ) {
 		return -ICAP_ERROR_INVALID;

@@ -20,8 +20,26 @@
 #include <string.h>
 #include <rpmsg_lite.h>
 
+typedef uint16_t atomic_t;
+
+struct _icap_remote_msg {
+	void *data;
+	uint32_t size;
+	uint32_t src_addr;
+};
+
+struct _icap_msg_fifo {
+	atomic_t head;
+	atomic_t tail;
+	struct _icap_remote_msg remote_msg[ICAP_MSG_QUEUE_SIZE];
+};
+
 struct icap_transport {
-	struct icap_rpmsg_lite_ep_info *ept_info;
+	struct rpmsg_lite_instance *rpmsg_instance;
+	struct rpmsg_lite_endpoint *rpmsg_ept;
+	uint32_t remote_addr;
+	struct _icap_msg_fifo msg_fifo;
+	uint8_t last_response[RL_BUFFER_PAYLOAD_SIZE];
 };
 
 #endif /* _ICAP_BM_RPMSG_LITE_H_ */

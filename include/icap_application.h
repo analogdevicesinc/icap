@@ -25,7 +25,7 @@ struct icap_application_callbacks {
 	int32_t (*error)(struct icap_instance *icap, int32_t error_code);
 };
 
-int32_t icap_application_init(struct icap_instance *icap, char* name, struct icap_application_callbacks *cb, void *transport, void *priv);
+int32_t icap_application_init(struct icap_instance *icap, char* name, struct icap_application_callbacks *cb, struct icap_transport *transport, void *priv);
 int32_t icap_application_deinit(struct icap_instance *icap);
 
 int32_t icap_get_subdevices(struct icap_instance *icap);
