@@ -65,7 +65,7 @@ struct icap_msg {
 	union icap_msg_payload payload;
 }ICAP_PACKED_END;
 
-int32_t icap_init_transport(struct icap_instance *icap, struct icap_transport *transport);
+int32_t icap_init_transport(struct icap_instance *icap);
 int32_t icap_deinit_transport(struct icap_instance *icap);
 int32_t icap_verify_remote(struct icap_instance *icap, union icap_remote_addr *src_addr);
 int32_t icap_send_platform(struct icap_instance *icap, void *data, uint32_t size);

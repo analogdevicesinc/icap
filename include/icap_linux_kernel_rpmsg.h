@@ -19,10 +19,16 @@
 #include <linux/stddef.h>
 #include <linux/string.h>
 #include <linux/rpmsg.h>
+#include <linux/skbuff.h>
 
 struct icap_transport {
 	struct rpmsg_device *rpdev;
 	struct mutex rpdev_lock;
+	spinlock_t skb_spinlock;
+	struct sk_buff_head response_queue;
+	struct wait_queue_head response_event;
+	struct mutex response_lock;
+	struct mutex platform_lock;
 };
 
 #endif /* _ICAP_LINUX_KERNEL_RPMSG_H_ */

@@ -128,9 +128,9 @@ enum icap_buf_type {
 };
 
 struct icap_instance {
+	struct icap_transport transport;
 	char *name;
 	uint32_t type;
-	struct icap_transport transport;
 	void *priv;
 	void *callbacks;
 	uint32_t seq_num;
