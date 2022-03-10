@@ -34,17 +34,27 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,USA.
  */
 
+/*
+ * Authors:
+ *   Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
  */
 
 #ifndef _ICAP_CONFIG_H_
 #define _ICAP_CONFIG_H_
 
+/**
+ * @file icap_config.h
+ * @brief Example ICAP configuration file
+ * 
+ */
+
+/** @brief ICAP message timeout */
 #define ICAP_MSG_TIMEOUT_US (600*1000)
 
 /* Choose one of the transport layers */
 //#define ICAP_LINUX_KERNEL_RPMSG /* For use in linux kernel */
 #define ICAP_BM_RPMSG_LITE /* For use in bare metal applications */
-//#define ICAP_LINUX_RPMSG_CHARDEV /* For use in linux user space applicaiton */
+//#define ICAP_LINUX_RPMSG_CHARDEV /* For use in linux user space application */
 
 #if defined(ICAP_BM_RPMSG_LITE)
 /* For static allocation of message queues */

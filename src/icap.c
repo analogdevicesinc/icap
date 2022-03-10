@@ -34,15 +34,33 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,USA.
  */
 
+/*
+ * Authors:
+ *   Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ */
+
+/**
+ * @file icap.c
+ * @author Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ * @brief ICAP (Inter Core Audio Protocol) platform independent source code.
+ *
+ * @copyright Copyright 2021-2022 Analog Devices Inc.
  */
 
 #include "../include/icap_application.h"
 #include "../include/icap_device.h"
 #include "platform/icap_transport.h"
 
+/**
+ * @brief ICAP instance type.
+ *
+ * ICAP specifies communication between application and device.
+ * Application side sends audio for playback and receives recorded audio.
+ * Device side receives audio  for playback and sends recorded audio.
+ */
 enum icap_instance_type {
-	ICAP_APPLICATION_INSTANCE = 0,
-	ICAP_DEVICE_INSTANCE = 1,
+	ICAP_APPLICATION_INSTANCE = 0, /**< ICAP application instance. */
+	ICAP_DEVICE_INSTANCE = 1, /**< ICAP device instance. */
 };
 
 int32_t icap_application_init(struct icap_instance *icap, char* name,
@@ -123,7 +141,6 @@ int32_t icap_send_msg(struct icap_instance *icap, enum icap_msg_cmd cmd,
 	msg.header.seq_num = seq_num;
 	msg.header.cmd = cmd;
 	msg.header.type = ICAP_MSG;
-	msg.header.flags = 0;
 	memset(&msg.header.reserved, 0, sizeof(msg.header.reserved));
 	msg.header.payload_len = size;
 
@@ -166,7 +183,6 @@ int32_t icap_send_response(struct icap_instance *icap, enum icap_msg_cmd cmd,
 	msg.header.seq_num = seq_num;
 	msg.header.cmd = cmd;
 	msg.header.type = type;
-	msg.header.flags = 0;
 	memset(&msg.header.reserved, 0, sizeof(msg.header.reserved));
 	msg.header.payload_len = size;
 

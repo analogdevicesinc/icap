@@ -16,6 +16,20 @@
  *  limitations under the License.
  */
 
+/*
+ * Authors:
+ *   Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ */
+
+/**
+ * @file icap_bm_rpmsg-lite.c
+ * @author Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ * @brief ICAP implementation for bare metal application with rpmsg-lite lib.
+ * 
+ * @copyright Copyright 2021-2022 Analog Devices Inc.
+ * 
+ */
+
 #include "icap_transport.h"
 
 #ifdef ICAP_BM_RPMSG_LITE

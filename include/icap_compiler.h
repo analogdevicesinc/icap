@@ -34,16 +34,27 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,USA.
  */
 
+/*
+ * Authors:
+ *   Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ */
 
 #ifndef _ICAP_COMPILER_H_
 #define _ICAP_COMPILER_H_
 
+/**
+ * @file icap_compiler.h
+ * @brief Compiler specific definitions
+ * 
+ */
+
 #if defined(__CCESVERSION__)
-/* Cross Code Embeded Studio project */
+/* Cross Code Embedded Studio project */
 #define ICAP_PACKED_BEGIN _Pragma("pack(1)")
 #define ICAP_PACKED_END _Pragma("pack()")
 
 #else
+/* GCC */
 #define ICAP_PACKED_BEGIN
 #define ICAP_PACKED_END __attribute__((packed))
 #endif

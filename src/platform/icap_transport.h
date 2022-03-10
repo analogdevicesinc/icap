@@ -34,43 +34,70 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,USA.
  */
 
+/*
+ * Authors:
+ *   Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ */
+
 #ifndef _ICAP_TRANSPORT_H_
 #define _ICAP_TRANSPORT_H_
+
+/**
+ * @file icap_transport.h
+ * @author Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ * @brief Private header file with messaging definitions.
+ * 
+ * @copyright Copyright 2021-2022 Analog Devices Inc.
+ * 
+ */
 
 #include "../../include/icap.h"
 
 #define ICAP_PROTOCOL_VERSION (1)
 
+/**
+ * @brief ICAP message type
+ * 
+ * Each ICAP message should have corresponding response from remote core.
+ */
 enum icap_msg_type {
-	ICAP_MSG = 0,
-	ICAP_ACK = 1,
-	ICAP_NAK = 2,
+	ICAP_MSG = 0, /**< Message. */
+	ICAP_ACK = 1, /**< Positive response. */
+	ICAP_NAK = 2, /**< Negative response. */
 };
 
+/**
+ * @brief ICAP command definitions
+ * 
+ */
 enum icap_msg_cmd {
 	/* Control commands */
-	ICAP_MSG_GET_DEV_NUM = 9,
-	ICAP_MSG_GET_DEV_FEATURES = 10,
-	ICAP_MSG_DEV_INIT = 11,
-	ICAP_MSG_DEV_DEINIT = 12,
+	ICAP_MSG_GET_DEV_NUM = 9, /**< Get number of subdevices. */
+	ICAP_MSG_GET_DEV_FEATURES = 10, /**< Get subdevice features. */
+	ICAP_MSG_DEV_INIT = 11, /**< Init subdevice. */
+	ICAP_MSG_DEV_DEINIT = 12, /**< Deinit subdevice. */
 
 	/* Stream commands */
-	ICAP_MSG_ADD_SRC = 50,
-	ICAP_MSG_ADD_DST = 51,
-	ICAP_MSG_REMOVE_SRC = 52,
-	ICAP_MSG_REMOVE_DST = 53,
-	ICAP_MSG_START = 54,
-	ICAP_MSG_STOP = 55,
-	ICAP_MSG_PAUSE = 56,
-	ICAP_MSG_RESUME = 57,
-	ICAP_MSG_BUF_OFFSETS = 58,
-	ICAP_MSG_FRAG_READY = 59,
-	ICAP_MSG_XRUN = 60,
+	ICAP_MSG_ADD_SRC = 50, /**< Add source buffer. */
+	ICAP_MSG_ADD_DST = 51, /**< Add destination buffer. */
+	ICAP_MSG_REMOVE_SRC = 52, /**< Remove source buffer. */
+	ICAP_MSG_REMOVE_DST = 53, /**< Remove destination buffer. */
+	ICAP_MSG_START = 54, /**< Start subdevice. */
+	ICAP_MSG_STOP = 55, /**< Stop subdevice. */
+	ICAP_MSG_PAUSE = 56, /**< Pause subdevice. */
+	ICAP_MSG_RESUME = 57, /**< Resume subdevice. */
+	ICAP_MSG_BUF_OFFSETS = 58, /**< Send offsets for new fragments, used in #ICAP_BUF_SCATTERED. */
+	ICAP_MSG_FRAG_READY = 59, /**< Audio fragment consumed. */
+	ICAP_MSG_XRUN = 60, /**< Report buffer xrun. */
 
 	/* Other messages */
-	ICAP_MSG_ERROR = 200,
+	ICAP_MSG_ERROR = 200, /**< Report error. */
 };
 
+/**
+ * @brief Message payload, valid union field depends on command.
+ * 
+ */
 ICAP_PACKED_BEGIN
 union icap_msg_payload {
 	uint8_t bytes[ICAP_BUF_NAME_LEN];
@@ -84,32 +111,107 @@ union icap_msg_payload {
 	struct icap_subdevice_params dev_params;
 }ICAP_PACKED_END;
 
+/**
+ * @brief Message header with controll fields.
+ * 
+ */
 ICAP_PACKED_BEGIN
 struct icap_msg_header {
-	uint32_t protocol_version;
-	uint32_t seq_num;
-	uint32_t cmd;
-	uint32_t type;
-	uint32_t flags;
-	uint32_t reserved[4];
-	uint32_t payload_len;
+	uint32_t protocol_version; /**< ICAP protocol version. */
+	uint32_t seq_num; /**< Sequence number of a message, increments every msg.*/
+	uint32_t cmd; /**< Command ID of the message.*/
+	uint32_t type; /**< Specifies if message or response to a message: ICAP_MSG, ICAP_ACK, ICAP_NAK. */
+	uint32_t reserved[5]; /**< Reserved for future use.*/
+	uint32_t payload_len; /**< Payload length in bytes.*/
 }ICAP_PACKED_END;
 
+/**
+ * @brief ICAP message definition.
+ * 
+ */
 ICAP_PACKED_BEGIN
 struct icap_msg {
 	struct icap_msg_header header;
 	union icap_msg_payload payload;
 }ICAP_PACKED_END;
 
+/**
+ * @brief Initializes platfrom specific transport layer.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @return int32_t Returns 0 on success, negative error code on failure.
+ */
 int32_t icap_init_transport(struct icap_instance *icap);
+
+/**
+ * @brief Releases platform specific transport layer.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @return int32_t Returns 0 on success, negative error code on failure.
+ */
 int32_t icap_deinit_transport(struct icap_instance *icap);
+
+/**
+ * @brief Verifies if source address is correct.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @param src_addr Source address to verify.
+ * @return int32_t Returns 0 when address is correct, -ICAP_ERROR_REMOTE_ADDR if wrong.
+ */
 int32_t icap_verify_remote(struct icap_instance *icap, union icap_remote_addr *src_addr);
+
+/**
+ * @brief Send ICAP message using platform specific transport.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @param data Pointer to ICAP message.
+ * @param size Totall size of the ICAP message.
+ * @return int32_t Returns 0 on success, negative error code on failure.
+ */
 int32_t icap_send_platform(struct icap_instance *icap, void *data, uint32_t size);
+
+/**
+ * @brief Notifies about received responce, may unblock a thread waiting for the response.
+ * May be called in interrupt context.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @param response Pointer to response message received.
+ * @return int32_t Returns -ICAP_ERROR_TIMEOUT if nobody waits
+ * for the message, 0 otherwise.
+ */
 int32_t icap_response_notify(struct icap_instance *icap, struct icap_msg *response);
+
+/**
+ * @brief Allows platform to prepare for expected response before sending the message.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @param msg Pointer to ICAP message which response to is expected.
+ * @return int32_t Returns 0 on success, negative error code on failure.
+ */
 int32_t icap_prepare_wait(struct icap_instance *icap, struct icap_msg *msg);
+
+/**
+ * @brief Puts the thread into sleep while waiting for response.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @param seq_num Sequence number of the expected response.
+ * @param response If not NULL the expected response is copied to the struct.
+ * @return int32_t Returns 0 on success, negative error code on failure.
+ */
 int32_t icap_wait_for_response(struct icap_instance *icap, uint32_t seq_num, struct icap_msg *response);
 
+/**
+ * @brief Lock critical section.
+ * 
+ * @param icap Pointer to ICAP instance.
+ */
 void icap_platform_lock(struct icap_instance *icap);
+
+/**
+ * @brief Unlock critical section.
+ * 
+ * @param icap Pointer to ICAP instance.
+ */
 void icap_platform_unlock(struct icap_instance *icap);
 
 #endif /* _ICAP_TRANSPORT_H_ */

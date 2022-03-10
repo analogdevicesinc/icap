@@ -34,10 +34,22 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,USA.
  */
 
+/*
+ * Authors:
+ *   Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
  */
 
 #ifndef _ICAP_BM_RPMSG_LITE_H_
 #define _ICAP_BM_RPMSG_LITE_H_
+
+/**
+ * @file icap_bm_rpmsg-lite.h
+ * @author Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ * @brief ICAP `icap_transport` definition for bare metal + rpmsg-lite platform.
+ * 
+ * @copyright Copyright 2021-2022 Analog Devices Inc.
+ * 
+ */
 
 #include <stdint.h>
 #include <stddef.h>
@@ -59,7 +71,14 @@ struct _icap_msg_fifo {
 };
 
 struct icap_transport {
+	/** @brief This field needs to be set to appropriate `struct rpmsg_lite_instance`
+	 * before ICAP initialization icap_application_init() or icap_device_init().
+	 */
 	struct rpmsg_lite_instance *rpmsg_instance;
+
+	/** @brief This field needs to be set to appropriate `struct rpmsg_lite_endpoint`
+	 * before ICAP initialization icap_application_init() or icap_device_init().
+	 */
 	struct rpmsg_lite_endpoint *rpmsg_ept;
 	uint32_t remote_addr;
 	struct _icap_msg_fifo msg_fifo;

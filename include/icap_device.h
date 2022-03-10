@@ -34,15 +34,47 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,USA.
  */
 
+/*
+ * Authors:
+ *   Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
  */
 
 #ifndef _ICAP_DEVICE_H_
 #define _ICAP_DEVICE_H_
 
+/**
+ * @file icap_device.h
+ * @author Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ * @brief ICAP definitions for device side.
+ * 
+ * @copyright Copyright 2021-2022 Analog Devices Inc.
+ * 
+ */
+
 #include "icap.h"
 
+/**
+ * @addtogroup dev_functions
+ * @{
+ */
+
+/**
+ * @brief Callbacks used on device side, executed when appropriate application message
+ * received by device side, please see @ref app_functions.
+ * 
+ * The #get_subdevices and #get_subdevice_features are mandatory,
+ * other callbacks are optional. If a callback isn't implemented ICAP by default
+ * responses with #ICAP_ACK to the message received.
+ * Implementation of a callback should return 0 on success (except #get_subdevices),
+ * a negative error code on failure or if a received parameter is invalid.
+ * 
+ */
 struct icap_device_callbacks {
+	/** @brief Mandatory - Device callback for icap_get_subdevices(),
+	 * the callback should return number of supported subdevices.*/
 	int32_t (*get_subdevices)(struct icap_instance *icap);
+
+	/** @brief Mandatory - Device callback for get_subdevice_features(), returns features of a subdevice. */
 	int32_t (*get_subdevice_features)(struct icap_instance *icap, uint32_t subdev_id, struct icap_subdevice_features *features);
 	int32_t (*subdevice_init)(struct icap_instance *icap, struct icap_subdevice_params *params);
 	int32_t (*subdevice_deinit)(struct icap_instance *icap, uint32_t subdev_id);
@@ -56,18 +88,91 @@ struct icap_device_callbacks {
 	int32_t (*pause)(struct icap_instance *icap, uint32_t subdev_id);
 	int32_t (*resume)(struct icap_instance *icap, uint32_t subdev_id);
 	int32_t (*frags)(struct icap_instance *icap, struct icap_buf_offsets *offsets);
+
+	/** @brief Callback executed when a response to icap_frag_ready() is received. */
 	int32_t (*frag_ready_response)(struct icap_instance *icap, int32_t buf_id);
+
+	/** @brief Callback executed when a response to icap_xrun() is received. */
 	int32_t (*xrun_response)(struct icap_instance *icap, int32_t buf_id);
 
+	/** @brief Callback executed when a response to icap_error() is received. */
 	int32_t (*error_response)(struct icap_instance *icap, int32_t error);
 };
 
+/**@}*/
+
+/**
+ * @addtogroup init_functions
+ * @{
+ */
+
+/**
+ * @brief Initializes device side ICAP instance,
+ * requires some fields in icap_instance.transport initialized depending on platfrom.
+ * 
+ * @param icap Pointer to new instance struct, the struct can be empty except some fields in icap_instance.transport.
+ * @param name Optional ICAP instance name.
+ * @param cb Pointer to #icap_device_callbacks.
+ * @param priv Private pointer for caller use.
+ * @return int32_t Returns 0 on success, negative error code on failure.
+ */
 int32_t icap_device_init(struct icap_instance *icap, char* name, struct icap_device_callbacks *cb, void *priv);
+
+/**
+ * @brief Deinitialize ICAP instance and frees allocated resources.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @return int32_t Returns 0 on success, negative error code on failure.
+ */
 int32_t icap_device_deinit(struct icap_instance *icap);
 
+/**@}*/
+
+/**
+ * @defgroup dev_functions Device side functions
+ * 
+ * Each function sends appropriate ICAP message to ICAP application which
+ * triggers appropriate application callback #icap_application_callbacks
+ * (if implemented), doesn't wait for response therefore it's safe to use the
+ * functions in interrupt context.
+ * 
+ * When a response is received to the ICAP message appropriate callback is
+ * executed:
+ * - icap_device_callbacks.frag_ready_response()
+ * - icap_device_callbacks.xrun_response()
+ * - icap_device_callbacks.error_response()
+ * 
+ * @{
+ */
+
+/**
+ * @brief Device should call this function when icap_buf_descriptor.report_frags
+ * is set and an audio fragment/s was consumed from the buffer by the device.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @param frags Pointer to struct containing buffer id and number of fragments consumed.
+ * @return int32_t Returns 0 on success, negative error code on failure.
+ */
 int32_t icap_frag_ready(struct icap_instance *icap, struct icap_buf_frags *frags);
+
+/**
+ * @brief Device can call this function if xrun event is detected.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @param frags Pointer to struct containing buffer id and number of fragments affected.
+ * @return int32_t Returns 0 on success, negative error code on failure.
+ */
 int32_t icap_xrun(struct icap_instance *icap, struct icap_buf_frags *frags);
 
+/**
+ * @brief Device can call this function to report an error condition in the device.
+ * 
+ * @param icap Pointer to ICAP instance.
+ * @param error Positive error code.
+ * @return int32_t Returns 0 on success, negative error code on failure.
+ */
 int32_t icap_error(struct icap_instance *icap, uint32_t error);
+
+/**@}*/
 
 #endif /* _ICAP_DEVICE_H_ */

@@ -18,6 +18,18 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,USA.
  */
 
+/*
+ * Authors:
+ *   Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ */
+
+/**
+ * @file icap_linux_kernel_rpmsg.c
+ * @author Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ * @brief ICAP implementation for Linux kernel rpmsg platform.
+ * 
+ * @copyright Copyright 2021-2022 Analog Devices Inc.
+ * 
  */
 
 #include "icap_transport.h"

@@ -18,10 +18,22 @@
  * Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301,USA.
  */
 
+/*
+ * Authors:
+ *   Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
  */
 
 #ifndef _ICAP_LINUX_KERNEL_RPMSG_H_
 #define _ICAP_LINUX_KERNEL_RPMSG_H_
+
+/**
+ * @file icap_linux_kernel_rpmsg.h
+ * @author Piotr Wojtaszczyk <piotr.wojtaszczyk@timesys.com>
+ * @brief ICAP `icap_transport` definition for Linux kernel platform.
+ * 
+ * @copyright Copyright 2021-2022 Analog Devices Inc.
+ * 
+ */
 
 #include <linux/types.h>
 #include <linux/stddef.h>
@@ -29,7 +41,14 @@
 #include <linux/rpmsg.h>
 #include <linux/skbuff.h>
 
+/**
+ * @brief ICAP `icap_transport` for Linux kernel ICAP implementation.
+ * 
+ */
 struct icap_transport {
+	/** @brief This field needs to be set to appropriate `struct rpmsg_device`
+	 * before ICAP initialization icap_application_init() or icap_device_init().
+	 */
 	struct rpmsg_device *rpdev;
 	struct mutex rpdev_lock;
 	spinlock_t skb_spinlock;
