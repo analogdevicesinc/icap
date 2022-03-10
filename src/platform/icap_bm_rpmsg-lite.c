@@ -37,10 +37,9 @@
 #include <string.h>
 #include <rpmsg_lite.h>
 
-int32_t icap_init_transport(struct icap_instance *icap, struct icap_transport *transport)
+int32_t icap_init_transport(struct icap_instance *icap)
 {
 	int i;
-	icap->transport = *transport;
 
 	memset(&icap->transport.msg_fifo, 0, sizeof(struct _icap_msg_fifo));
 	icap->transport.remote_addr = (uint32_t)-1;
